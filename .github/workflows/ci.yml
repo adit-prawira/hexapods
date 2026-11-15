@@ -23,13 +23,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.mujoco
-          key: mujoco-4.0.1-macos-arm64
+          key: mujoco-4.0.1-macos-arm64-v2
       - name: Build MuJoCo 4.0.1 from source
         if: steps.mujoco.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch 4.0.1 https://github.com/google-deepmind/mujoco.git ~/src/mujoco
           cmake -S ~/src/mujoco -B ~/src/mujoco/build -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=$HOME/.mujoco/mujoco-4.0.1
+                -DCMAKE_INSTALL_PREFIX=$HOME/.mujoco/mujoco-4.0.1 \
+                -DMUJOCO_BUILD_EXAMPLES=OFF \
+                -DMUJOCO_BUILD_SIMULATE=OFF \
+                -DMUJOCO_BUILD_TESTS=OFF \
+                -DMUJOCO_TEST_PYTHON_UTIL=OFF \
+                -DBUILD_TESTING=OFF
           cmake --build ~/src/mujoco/build --parallel
           cmake --install ~/src/mujoco/build
       - name: Build hexapods
