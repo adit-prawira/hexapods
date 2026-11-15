@@ -1,0 +1,10 @@
+build/
+.DS_Store
+journal*.log
+compile_commands.json
+.cache/
+
+# markdown: only README.md is tracked; anything else is owner-decided
+*.md
+!README.md
+!DOMAIN-MODELLING.md

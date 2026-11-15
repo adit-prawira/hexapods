@@ -1,0 +1,16 @@
+<mujoco model="hexapods dev scene">
+  <!-- Determinism contract: fixed timestep, nothing random. -->
+  <option timestep="0.002"/>
+  <statistic center="0 0 0.3" extent="1.6"/>
+  <worldbody>
+    <light name="top" pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.9 0.9 0.9 1"/>
+    <body name="anchor_box" pos="0 0 0.3">
+      <geom name="anchor_box_geom" type="box" size="0.15 0.15 0.3" rgba="0.75 0.2 0.2 1"/>
+    </body>
+    <body name="drop_box" pos="0.8 0 1.2">
+      <freejoint name="drop_box_joint"/>
+      <geom name="drop_box_geom" type="box" size="0.12 0.12 0.12" rgba="0.2 0.4 0.8 1"/>
+    </body>
+  </worldbody>
+</mujoco>

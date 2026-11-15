@@ -1,0 +1,38 @@
+name: ci
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  format:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install clang-format
+      - run: clang-format --dry-run --Werror $(find src tests \( -name '*.cpp' -o -name '*.hpp' \))
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install cmake glfw
+      - name: Restore MuJoCo cache
+        id: mujoco
+        uses: actions/cache@v4
+        with:
+          path: ~/.mujoco
+          key: mujoco-4.0.1-macos-arm64
+      - name: Build MuJoCo 4.0.1 from source
+        if: steps.mujoco.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 4.0.1 https://github.com/google-deepmind/mujoco.git ~/src/mujoco
+          cmake -S ~/src/mujoco -B ~/src/mujoco/build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=$HOME/.mujoco/mujoco-4.0.1
+          cmake --build ~/src/mujoco/build --parallel
+          cmake --install ~/src/mujoco/build
+      - name: Build hexapods
+        run: make build
+      - name: Scenario gates
+        run: make test
