@@ -1,0 +1,189 @@
+<mujoco model="hexapod">
+  <!-- Determinism contract: fixed timestep, nothing random. -->
+  <option timestep="0.002"/>
+  <statistic center="0 0 0.2" extent="1.2"/>
+
+  <!-- Contact policy: floor is bit 1, robot is bit 2. Robot geoms collide
+       with the floor but never with each other. -->
+  <default>
+    <joint damping="0.5" armature="0.01"/>
+    <default class="trunk">
+      <geom contype="2" conaffinity="1"/>
+    </default>
+    <default class="leg">
+      <geom contype="2" conaffinity="1" density="200"/>
+    </default>
+    <default class="coxa">
+      <joint range="-0.7 0.7"/>
+      <position kp="30" kv="0.8" ctrlrange="-0.7 0.7"/>
+    </default>
+    <default class="femur">
+      <joint range="-0.6 1.4"/>
+      <position kp="60" kv="1.2" ctrlrange="-0.6 1.4"/>
+    </default>
+    <default class="tibia">
+      <joint range="0.1 2.2"/>
+      <position kp="60" kv="1.2" ctrlrange="0.1 2.2"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light name="top" pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.9 0.9 0.9 1"
+          contype="1" conaffinity="2"/>
+
+    <body name="trunk" pos="0 0 0.30">
+      <freejoint name="root"/>
+      <geom name="trunk_geom" class="trunk" type="box" size="0.24 0.18 0.05"
+            mass="1.6" rgba="0.35 0.35 0.4 1"/>
+
+      <!-- Six legs at 60 deg spacing on a 0.17 m hip circle. Each leg is a
+           coxa (yaw, z axis) -> femur (pitch, y axis) -> tibia (pitch, y
+           axis) chain along the leg-local +x axis. Joint zeros = straight
+           legs; the standing pose is set by actuator targets in C++.
+           Leg 0 is the template; legs 1-5 are clones with different
+           pos/euler. -->
+      <body name="leg0" pos="0.17 0 0" euler="0 0 0">
+        <body name="leg0_coxa">
+          <joint name="leg0_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg0_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg0_femur" pos="0.07 0 0">
+            <joint name="leg0_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg0_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg0_tibia" pos="0.16 0 0">
+              <joint name="leg0_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg0_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg0_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="leg1" pos="0.085 0.147 0" euler="0 0 60">
+        <body name="leg1_coxa">
+          <joint name="leg1_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg1_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg1_femur" pos="0.07 0 0">
+            <joint name="leg1_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg1_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg1_tibia" pos="0.16 0 0">
+              <joint name="leg1_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg1_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg1_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="leg2" pos="-0.085 0.147 0" euler="0 0 120">
+        <body name="leg2_coxa">
+          <joint name="leg2_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg2_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg2_femur" pos="0.07 0 0">
+            <joint name="leg2_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg2_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg2_tibia" pos="0.16 0 0">
+              <joint name="leg2_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg2_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg2_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="leg3" pos="-0.17 0 0" euler="0 0 180">
+        <body name="leg3_coxa">
+          <joint name="leg3_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg3_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg3_femur" pos="0.07 0 0">
+            <joint name="leg3_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg3_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg3_tibia" pos="0.16 0 0">
+              <joint name="leg3_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg3_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg3_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="leg4" pos="-0.085 -0.147 0" euler="0 0 240">
+        <body name="leg4_coxa">
+          <joint name="leg4_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg4_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg4_femur" pos="0.07 0 0">
+            <joint name="leg4_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg4_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg4_tibia" pos="0.16 0 0">
+              <joint name="leg4_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg4_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg4_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="leg5" pos="0.085 -0.147 0" euler="0 0 300">
+        <body name="leg5_coxa">
+          <joint name="leg5_coxa" class="coxa" type="hinge" axis="0 0 1"/>
+          <geom name="leg5_coxa_geom" class="leg" type="capsule"
+                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <body name="leg5_femur" pos="0.07 0 0">
+            <joint name="leg5_femur" class="femur" type="hinge" axis="0 1 0"/>
+            <geom name="leg5_femur_geom" class="leg" type="capsule"
+                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <body name="leg5_tibia" pos="0.16 0 0">
+              <joint name="leg5_tibia" class="tibia" type="hinge" axis="0 1 0"/>
+              <geom name="leg5_tibia_geom" class="leg" type="capsule"
+                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
+              <geom name="leg5_foot" class="leg" type="sphere" pos="0.20 0 0"
+                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
+                    rgba="0.1 0.1 0.12 1"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="leg0_coxa" class="coxa" joint="leg0_coxa"/>
+    <position name="leg0_femur" class="femur" joint="leg0_femur"/>
+    <position name="leg0_tibia" class="tibia" joint="leg0_tibia"/>
+    <position name="leg1_coxa" class="coxa" joint="leg1_coxa"/>
+    <position name="leg1_femur" class="femur" joint="leg1_femur"/>
+    <position name="leg1_tibia" class="tibia" joint="leg1_tibia"/>
+    <position name="leg2_coxa" class="coxa" joint="leg2_coxa"/>
+    <position name="leg2_femur" class="femur" joint="leg2_femur"/>
+    <position name="leg2_tibia" class="tibia" joint="leg2_tibia"/>
+    <position name="leg3_coxa" class="coxa" joint="leg3_coxa"/>
+    <position name="leg3_femur" class="femur" joint="leg3_femur"/>
+    <position name="leg3_tibia" class="tibia" joint="leg3_tibia"/>
+    <position name="leg4_coxa" class="coxa" joint="leg4_coxa"/>
+    <position name="leg4_femur" class="femur" joint="leg4_femur"/>
+    <position name="leg4_tibia" class="tibia" joint="leg4_tibia"/>
+    <position name="leg5_coxa" class="coxa" joint="leg5_coxa"/>
+    <position name="leg5_femur" class="femur" joint="leg5_femur"/>
+    <position name="leg5_tibia" class="tibia" joint="leg5_tibia"/>
+  </actuator>
+</mujoco>
