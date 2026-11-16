@@ -1,4 +1,8 @@
 <mujoco model="hexapod">
+  <!-- Radian units: joint ranges, ctrl ranges, and euler angles below are
+       radians. MJCF defaults to degrees — leaving that default silently
+       welds every joint to a ~degree-wide range. -->
+  <compiler angle="radian"/>
   <!-- Determinism contract: fixed timestep, nothing random. -->
   <option timestep="0.002"/>
   <statistic center="0 0 0.2" extent="1.2"/>
@@ -18,147 +22,202 @@
       <position kp="30" kv="0.8" ctrlrange="-0.7 0.7"/>
     </default>
     <default class="femur">
-      <joint range="-0.6 1.4"/>
-      <position kp="60" kv="1.2" ctrlrange="-0.6 1.4"/>
+      <joint range="-1.4 1.4"/>
+      <position kp="60" kv="1.2" ctrlrange="-1.4 1.4"/>
     </default>
     <default class="tibia">
-      <joint range="0.1 2.2"/>
-      <position kp="60" kv="1.2" ctrlrange="0.1 2.2"/>
+      <joint range="0.1 3.0"/>
+      <position kp="60" kv="1.2" ctrlrange="0.1 3.0"/>
     </default>
   </default>
 
+  <asset>
+    <mesh name="trunk_mesh" file="trunk.obj"/>
+    <mesh name="trunk_spine_mesh" file="trunk.obj" scale="0.45 0.5 0.4"/>
+    <mesh name="femur_mesh" file="femur.obj"/>
+    <mesh name="tibia_mesh" file="tibia.obj"/>
+    <mesh name="coxa_mesh" file="femur.obj" scale="0.4375 1 1"/>
+    <mesh name="foot_mesh" file="foot.obj"/>
+    <material name="carbon" rgba="0.07 0.08 0.10 1" metallic="0.5" roughness="0.3"/>
+    <material name="gunmetal" rgba="0.35 0.37 0.40 1" metallic="0.8" roughness="0.4"/>
+    <material name="servo" rgba="0.15 0.16 0.18 1" metallic="0.6" roughness="0.35"/>
+    <material name="amber" rgba="1.0 0.45 0.05 1" metallic="0.2" roughness="0.5"/>
+    <texture name="floor_checker" type="2d" builtin="checker" rgb1="0.24 0.25 0.27"
+             rgb2="0.20 0.21 0.23" width="512" height="512"/>
+    <material name="floor_mat" texture="floor_checker" texuniform="true" texrepeat="8 8"/>
+  </asset>
+
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.5 0.5 0.5" specular="0.1 0.1 0.1"/>
+  </visual>
+
   <worldbody>
     <light name="top" pos="0 0 3" dir="0 0 -1" directional="true"/>
-    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.9 0.9 0.9 1"
+    <light name="fill" pos="-2 -1.5 2.5" dir="0.5 0.4 -1" directional="true"/>
+    <geom name="floor" type="plane" size="5 5 0.1" material="floor_mat"
           contype="1" conaffinity="2"/>
 
     <body name="trunk" pos="0 0 0.30">
       <freejoint name="root"/>
-      <geom name="trunk_geom" class="trunk" type="box" size="0.24 0.18 0.05"
-            mass="1.6" rgba="0.35 0.35 0.4 1"/>
+      <geom name="trunk_geom" class="trunk" type="mesh" mesh="trunk_mesh"
+            mass="1.6" material="carbon"/>
+      <geom name="trunk_spine" class="trunk" type="mesh" mesh="trunk_spine_mesh"
+            pos="0 0 0.072" mass="0.1" material="gunmetal"/>
 
-      <!-- Six legs at 60 deg spacing on a 0.17 m hip circle. Each leg is a
+      <!-- Bilateral layout: one leg on each side face of the octagon trunk
+           (4 chamfer faces + 2 long side faces); the nose (+x) and tail (-x)
+           faces are bare. Leg 0 = front-right (45 deg), 1 = right (90),
+           2 = rear-right (135), 3 = rear-left (225), 4 = left (270),
+           5 = front-left (315). Each leg is a
            coxa (yaw, z axis) -> femur (pitch, y axis) -> tibia (pitch, y
            axis) chain along the leg-local +x axis. Joint zeros = straight
-           legs; the standing pose is set by actuator targets in C++.
-           Leg 0 is the template; legs 1-5 are clones with different
-           pos/euler. -->
-      <body name="leg0" pos="0.17 0 0" euler="0 0 0">
+           legs; the standing pose is set by actuator targets in C++. -->
+      <body name="leg0" pos="0.23 0.10 0" euler="0 0 0.7854">
         <body name="leg0_coxa">
           <joint name="leg0_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg0_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg0_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg0_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg0_femur" pos="0.07 0 0">
             <joint name="leg0_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg0_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg0_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg0_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg0_tibia" pos="0.16 0 0">
               <joint name="leg0_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg0_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg0_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg0_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg0_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg0_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>
       </body>
-      <body name="leg1" pos="0.085 0.147 0" euler="0 0 60">
+      <body name="leg1" pos="0 0.13 0" euler="0 0 1.5708">
         <body name="leg1_coxa">
           <joint name="leg1_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg1_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg1_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg1_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg1_femur" pos="0.07 0 0">
             <joint name="leg1_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg1_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg1_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg1_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg1_tibia" pos="0.16 0 0">
               <joint name="leg1_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg1_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg1_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg1_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg1_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg1_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>
       </body>
-      <body name="leg2" pos="-0.085 0.147 0" euler="0 0 120">
+      <body name="leg2" pos="-0.23 0.10 0" euler="0 0 2.3562">
         <body name="leg2_coxa">
           <joint name="leg2_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg2_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg2_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg2_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg2_femur" pos="0.07 0 0">
             <joint name="leg2_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg2_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg2_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg2_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg2_tibia" pos="0.16 0 0">
               <joint name="leg2_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg2_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg2_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg2_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg2_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg2_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>
       </body>
-      <body name="leg3" pos="-0.17 0 0" euler="0 0 180">
+      <body name="leg3" pos="-0.23 -0.10 0" euler="0 0 3.9270">
         <body name="leg3_coxa">
           <joint name="leg3_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg3_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg3_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg3_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg3_femur" pos="0.07 0 0">
             <joint name="leg3_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg3_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg3_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg3_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg3_tibia" pos="0.16 0 0">
               <joint name="leg3_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg3_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg3_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg3_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg3_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg3_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>
       </body>
-      <body name="leg4" pos="-0.085 -0.147 0" euler="0 0 240">
+      <body name="leg4" pos="0 -0.13 0" euler="0 0 4.7124">
         <body name="leg4_coxa">
           <joint name="leg4_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg4_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg4_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg4_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg4_femur" pos="0.07 0 0">
             <joint name="leg4_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg4_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg4_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg4_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg4_tibia" pos="0.16 0 0">
               <joint name="leg4_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg4_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg4_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg4_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg4_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg4_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>
       </body>
-      <body name="leg5" pos="0.085 -0.147 0" euler="0 0 300">
+      <body name="leg5" pos="0.23 -0.10 0" euler="0 0 5.4978">
         <body name="leg5_coxa">
           <joint name="leg5_coxa" class="coxa" type="hinge" axis="0 0 1"/>
-          <geom name="leg5_coxa_geom" class="leg" type="capsule"
-                fromto="0 0 0 0.07 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+          <geom name="leg5_coxa_geom" class="leg" type="mesh" mesh="coxa_mesh" mass="0.025"
+                material="gunmetal"/>
+          <geom name="leg5_coxa_servo" class="leg" type="cylinder" pos="0 0 0"
+                size="0.028 0.035" mass="0.03" material="servo"/>
           <body name="leg5_femur" pos="0.07 0 0">
             <joint name="leg5_femur" class="femur" type="hinge" axis="0 1 0"/>
-            <geom name="leg5_femur_geom" class="leg" type="capsule"
-                  fromto="0 0 0 0.16 0 0" size="0.02" rgba="0.2 0.2 0.25 1"/>
+            <geom name="leg5_femur_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                  pos="0 0 0" size="0.026 0.030" mass="0.03" material="servo"/>
+            <geom name="leg5_femur_geom" class="leg" type="mesh" mesh="femur_mesh" mass="0.05"
+                  material="gunmetal"/>
             <body name="leg5_tibia" pos="0.16 0 0">
               <joint name="leg5_tibia" class="tibia" type="hinge" axis="0 1 0"/>
-              <geom name="leg5_tibia_geom" class="leg" type="capsule"
-                    fromto="0 0 0 0.20 0 0" size="0.016" rgba="0.2 0.2 0.25 1"/>
-              <geom name="leg5_foot" class="leg" type="sphere" pos="0.20 0 0"
-                    size="0.025" mass="0.02" friction="1.5 0.005 0.0001"
-                    rgba="0.1 0.1 0.12 1"/>
+              <geom name="leg5_tibia_servo" class="leg" type="cylinder" euler="1.5708 0 0"
+                    pos="0 0 0" size="0.024 0.028" mass="0.03" material="servo"/>
+              <geom name="leg5_tibia_geom" class="leg" type="mesh" mesh="tibia_mesh" mass="0.05"
+                    material="gunmetal"/>
+              <geom name="leg5_foot" class="leg" type="mesh" mesh="foot_mesh" pos="0.26 0 0" mass="0.02"
+                    friction="1.5 0.005 0.0001" material="amber"/>
             </body>
           </body>
         </body>

@@ -1,4 +1,5 @@
 #pragma once
+#include "control/control.hpp"
 #include "events/journal.hpp"
 #include "presentation/camera.hpp"
 #include "session/clock.hpp"
@@ -12,7 +13,7 @@ struct WindowState;
 
 class Viewer {
   public:
-    Viewer(World& world, Clock& clock, Journal& journal);
+    Viewer(World& world, Clock& clock, Journal& journal, Control& control);
     ~Viewer();
 
     Viewer(const Viewer&) = delete;
@@ -25,10 +26,12 @@ class Viewer {
     void updateCamera();
     void stepWorld(double frameSeconds);
     void draw();
+    void drawHud();
 
     World& world_;
     Clock& clock_;
     Journal& journal_;
+    Control& control_;
     Camera camera_;
     GLFWwindow* window_ = nullptr;
     std::unique_ptr<WindowState> windowState_;

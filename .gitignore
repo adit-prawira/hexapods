@@ -3,6 +3,8 @@ build/
 journal*.log
 compile_commands.json
 .cache/
+MUJOCO_LOG.TXT
+imgui.ini
 
 # markdown: only README.md is tracked; anything else is owner-decided
 *.md

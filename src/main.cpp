@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <string>
 
+#include "control/control.hpp"
 #include "events/journal.hpp"
 #include "presentation/viewer.hpp"
 #include "session/clock.hpp"
@@ -12,14 +13,14 @@
 namespace {
 const char* kUsage =
     "usage hexapods [--model <path>] [--journal <path>] [--seed <n>] [--scenario <name>]\n"
-    " --model     MJCF scene to load (default: models/scene.xml)"
+    " --model     MJCF scene to load (default: models/hexapod.xml)"
     " --journal   input journal output file (default: journal.log)\n"
     " --seed      RNG seed, recorded in the journal (default: 0)\n"
     " --scenario  headless pass/fail scenario";
 };
 
 int main(int argc, char** argv) {
-    std::string modelPath = "models/scene.xml";
+    std::string modelPath = "models/hexapod.xml";
     std::string journalPath = "journal.log";
     std::string scenario;
 
@@ -58,9 +59,15 @@ int main(int argc, char** argv) {
         World world(modelPath);
         Clock clock(world.timestep());
         Journal journal;
+        Control control(world);
+        control.holdStandPose();
+
         journal.open(journalPath, modelPath, world.timestep(), seed);
 
-        Viewer viewer(world, clock, journal);
+        world.disabledActuation();
+        journal.append({0, InputEvent::Type::Toggle, "Actuator OFF"});
+
+        Viewer viewer(world, clock, journal, control);
         const uint64_t totalSteps = viewer.run();
         journal.close();
         std::printf("session: %llu steps, journal: %s\n",

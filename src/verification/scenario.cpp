@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <map>
+#include <stdexcept>
 
 namespace verification {
 namespace {
@@ -28,7 +29,14 @@ bool runScenario(const std::string& name, const std::string& modelPath, uint64_t
         std::printf(")\n");
         return false;
     }
-    return scenario->second(modelPath, seed);
+    // A gate that throws (bad model path, missing body) is a FAIL with a
+    // message — never an abort that takes the whole test runner down.
+    try {
+        return scenario->second(modelPath, seed);
+    } catch (const std::exception& error) {
+        std::printf("scenario '%s': FAIL - %s\n", name.c_str(), error.what());
+        return false;
+    }
 }
 
 uint64_t hashState(const mjModel& model, const mjData& data) {

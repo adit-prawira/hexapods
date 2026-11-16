@@ -21,18 +21,36 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH "${MUJOCO_ROOT}")
 find_package(mujoco CONFIG REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
+find_package(OpenGL REQUIRED)
+
+# Dear ImGui: ships no CMake package, so fetch the pinned release at
+# configure time (network needed once; cached in build/_deps afterwards).
+include(FetchContent)
+FetchContent_Declare(imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG v1.93.0
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(imgui)
 
 add_executable(hexapods
   src/main.cpp
+  src/control/control.cpp
   src/world/world.cpp
   src/session/clock.cpp
   src/events/journal.cpp
   src/presentation/viewer.cpp
   src/verification/scenario.cpp
   tests/scenarios.cpp
+  ${imgui_SOURCE_DIR}/imgui.cpp
+  ${imgui_SOURCE_DIR}/imgui_draw.cpp
+  ${imgui_SOURCE_DIR}/imgui_tables.cpp
+  ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
 )
-target_include_directories(hexapods PRIVATE src)
-target_link_libraries(hexapods PRIVATE mujoco::mujoco glfw)
+target_include_directories(hexapods PRIVATE src ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(hexapods PRIVATE mujoco::mujoco glfw OpenGL::GL)
 
 set_target_properties(hexapods PROPERTIES 
   BUILD_WITH_INSTALL_RPATH ON 

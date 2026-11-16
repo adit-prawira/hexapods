@@ -1,8 +1,10 @@
 // Behavioral gates for the hexapods scenario harness. Each gate is a claim:
 // "given [scenario], then [expectation]". Gates self-register with the
 // Verification harness at startup; `make test` runs them.
+#include <algorithm>
 #include <cstdio>
 
+#include "control/control.hpp"
 #include "verification/scenario.hpp"
 #include "world/world.hpp"
 
@@ -59,11 +61,73 @@ bool scenarioDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
     return true;
 }
 
+// Given the hexapod launched with the stand pose commanded, then it stands
+// up and holds: across the final 60 s of a 64 s run (the first 4 s absorbs
+// the stand-up transient), the worst joint tracking error stays below
+// 0.05 rad and the trunk never sinks below 0.10 m. The thresholds are
+// independent of the code: 0.05 rad is the story #10 acceptance number, and
+// the height band comes from geometry — standing is 0.16 m (0.32 m of tibia
+// drop less 0.16 m of femur rise), belly rest is 0.055 m; 0.10 m sits far
+// from both.
+bool scenarioStand(const std::string& modelPath, uint64_t /*seed*/) {
+    World world(modelPath);
+    Control control(world);
+    control.holdStandPose();
+
+    constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
+    constexpr int holdSteps = 30000;   // 60.0 s the story requires held
+    for (int step = 0; step < standUpSteps; ++step) {
+        world.step();
+    }
+
+    double worstTrackingError = 0.0;
+    double lowestTrunkHeight = 2.0;
+    for (int step = 0; step < holdSteps; ++step) {
+        world.step();
+        worstTrackingError = std::max(worstTrackingError, world.maxJointTrackingError());
+        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+    }
+
+    const bool passed = worstTrackingError < 0.05 && lowestTrunkHeight >= 0.10;
+    std::printf("stand: given the stand pose commanded from launch, then over "
+                "the last 60 s the worst tracking error is %.3f rad (need < 0.050) "
+                "and the lowest trunk height is %.3f m (need >= 0.100): %s\n",
+                worstTrackingError, lowestTrunkHeight, passed ? "PASS" : "FAIL");
+    return passed;
+}
+
+// Given the hexapod launched with actuation disabled, then gravity wins:
+// within 3 s the trunk rests below 0.08 m. Thresholds are independent of
+// the code: free fall from the 0.30 m spawn takes ~0.25 s, the belly rest
+// is 0.055 m (half the trunk) and the active stand is 0.16 m — 0.08 m sits
+// far from both. The permanent honest-physics check: no hidden force can
+// hold the robot up.
+bool scenarioSanity(const std::string& modelPath, uint64_t /*seed*/) {
+    World world(modelPath);
+    Control control(world);
+    control.holdStandPose(); // targets parked; the breaker stays open
+    world.disabledActuation();
+
+    constexpr int collapseSteps = 1500; // 3.0 s of pure gravity and contact
+    for (int step = 0; step < collapseSteps; ++step) {
+        world.step();
+    }
+
+    const double trunkHeight = world.trunkHeight();
+    const bool passed = trunkHeight < 0.08;
+    std::printf("sanity: given actuation disabled from launch, then after 3.0 s of "
+                "gravity the trunk rests at %.3f m (need < 0.080): %s\n",
+                trunkHeight, passed ? "PASS" : "FAIL");
+    return passed;
+}
+
 // Self-registration: the gates exist in the suite because this initializer
 // runs at startup, before main.
 const bool registered = [] {
     verification::registerScenario("smoke", &scenarioSmoke);
     verification::registerScenario("determinism", &scenarioDeterminism);
+    verification::registerScenario("stand", &scenarioStand);
+    verification::registerScenario("sanity", &scenarioSanity);
     return true;
 }();
 
