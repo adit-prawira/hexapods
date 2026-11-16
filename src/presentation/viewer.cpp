@@ -1,7 +1,11 @@
 #include "presentation/viewer.hpp"
 #include "events/input_event.hpp"
 #include "events/journal.hpp"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl2.h"
 #include "mujoco/mujoco.h"
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
@@ -17,8 +21,8 @@ struct WindowState {
     double scrollDelta = 0.0;
 };
 
-Viewer::Viewer(World& world, Clock& clock, Journal& journal)
-    : world_(world), clock_(clock), journal_(journal) {
+Viewer::Viewer(World& world, Clock& clock, Journal& journal, Control& control)
+    : world_(world), clock_(clock), journal_(journal), control_(control) {
     glfwSetErrorCallback(onGlfwError);
     if (!glfwInit())
         throw std::runtime_error("glfwInit failed");
@@ -46,9 +50,19 @@ Viewer::Viewer(World& world, Clock& clock, Journal& journal)
     mjr_makeContext(&world_.model(), &context_, 150);
 
     camera_.frameModel(world.model());
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
+    ImGui_ImplGlfw_InitForOpenGL(window_, true); // ImGui chains existing glfw callbacks
+    ImGui_ImplOpenGL2_Init();
 }
 
 Viewer::~Viewer() {
+    ImGui_ImplOpenGL2_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
     mjr_freeContext(&context_);
     mjv_freeScene(&scene_);
     glfwDestroyWindow(window_);
@@ -61,6 +75,11 @@ uint64_t Viewer::run() {
 
     while (!glfwWindowShouldClose(window_)) {
         glfwPollEvents();
+
+        ImGui_ImplGlfw_NewFrame();
+        ImGui_ImplOpenGL2_NewFrame();
+        ImGui::NewFrame();
+
         handleKeys();
         updateCamera();
 
@@ -69,6 +88,8 @@ uint64_t Viewer::run() {
 
         lastFrameTime = now;
         stepWorld(frameSeconds);
+        drawHud();
+        ImGui::Render();
         draw();
     }
 
@@ -85,6 +106,7 @@ void Viewer::handleKeys() {
     const bool resetKeyDown = glfwGetKey(window_, GLFW_KEY_R) == GLFW_PRESS;
     if (resetKeyDown && !resetKeyWasDown_) {
         world_.reset();
+        control_.holdStandPose();
         clock_.startEpoch();
         journal_.append({0, InputEvent::Type::Reset, "reset"});
     }
@@ -103,6 +125,11 @@ void Viewer::updateCamera() {
 
     previousMouseX_ = mouseX;
     previousMouseY_ = mouseY;
+
+    if (ImGui::GetIO().WantCaptureMouse) {
+        windowState_->scrollDelta = 0.0;
+        return;
+    }
 
     const mjModel& model = world_.model();
 
@@ -140,5 +167,32 @@ void Viewer::draw() {
     mjv_updateScene(&world_.model(), &world_.renderData(), &option_, &perturb_, &camera_.state(),
                     mjCAT_ALL, &scene_);
     mjr_render(mjrRect{0, 0, frameBufferWidth, frameBufferHeight}, &scene_, &context_);
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window_);
+}
+
+void Viewer::drawHud() {
+    const ImGuiIO& io = ImGui::GetIO();
+    constexpr double kRadiansToDegree = 180 / M_PI;
+
+    ImGui::SetNextWindowPos(ImVec2(14.0f, 14.0f), ImGuiCond_Once);
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    ImGui::Begin("hexapods", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGui::Text("fps %.0f", io.Framerate);
+    ImGui::Text("steps %llu", static_cast<unsigned long long>(world_.stepIndex()));
+    ImGui::Text("tracking error: %.3f rad", world_.maxJointTrackingError());
+    ImGui::Text("trunk pitch: %+.1f deg", world_.trunkPitch() * kRadiansToDegree);
+    ImGui::Text("trunk height: %.3f", world_.trunkHeight());
+
+    bool isActuatorEnabled = world_.isActuationEnabled();
+    if (ImGui::Checkbox("Enable Actuator", &isActuatorEnabled)) {
+        if (isActuatorEnabled)
+            world_.enableActuation();
+        else
+            world_.disabledActuation();
+        std::string label = isActuatorEnabled ? "Actuator ON" : "Actuator OFF";
+        journal_.append({world_.stepIndex(), InputEvent::Type::Toggle, label});
+    }
+    ImGui::End();
 }

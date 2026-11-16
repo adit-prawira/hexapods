@@ -1,0 +1,31 @@
+# hexapods foot claw: cone along +x (the tibia axis), base flush with the
+# tibia capsule tip, apex as the ground contact point.
+o claw
+v 0.06 0 0
+v 0 0.019 0
+v 0 0.0134 0.0134
+v 0 0 0.019
+v 0 -0.0134 0.0134
+v 0 -0.019 0
+v 0 -0.0134 -0.0134
+v 0 0 -0.019
+v 0 0.0134 -0.0134
+v 0 0 0
+# sides (apex fan)
+f 1 2 3
+f 1 3 4
+f 1 4 5
+f 1 5 6
+f 1 6 7
+f 1 7 8
+f 1 8 9
+f 1 9 2
+# base cap
+f 10 3 2
+f 10 4 3
+f 10 5 4
+f 10 6 5
+f 10 7 6
+f 10 8 7
+f 10 9 8
+f 10 2 9

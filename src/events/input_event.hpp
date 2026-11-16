@@ -7,7 +7,8 @@ struct InputEvent {
         Key = 'k',     // teleop/keyboard commands
         Reset = 'r',   // world reinitialized; starts new epoch
         Perturb = 'p', // mouse-grab forces
-        Slider = 's',  // live parameter changes
+        Slider = 's',  // live parameter changes,
+        Toggle = 't',  // toogle to enable/disable physics
     };
 
     // the step at which an event took effect

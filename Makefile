@@ -11,8 +11,10 @@ run: build
 	$(BUILD_DIR)/hexapods
 
 test: build
-	$(BUILD_DIR)/hexapods --scenario smoke
+	$(BUILD_DIR)/hexapods --model models/scene.xml --scenario smoke
 	$(BUILD_DIR)/hexapods --scenario determinism
+	$(BUILD_DIR)/hexapods --scenario stand
+	$(BUILD_DIR)/hexapods --scenario sanity
 	@echo "all scenario gates passed"
 
 format:
