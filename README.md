@@ -3,6 +3,8 @@
 A native hexapod robotics playground: C++20 brain, MuJoCo physics, MJCF XML body.
 macOS, Apple Silicon.
 
+<img width="1077" height="784" alt="Screenshot 2026-11-21 at 10 32 07 pm" src="https://github.com/user-attachments/assets/f34ef1ae-8391-4041-860a-2313f38882c5" />
+
 ## Setup — zero to running, step by step
 
 Three steps, in this order. Steps 1–2 are once per machine; step 3 is once
