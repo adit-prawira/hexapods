@@ -15,6 +15,8 @@ test: build
 	$(BUILD_DIR)/hexapods --scenario determinism
 	$(BUILD_DIR)/hexapods --scenario stand
 	$(BUILD_DIR)/hexapods --scenario sanity
+	$(BUILD_DIR)/hexapods --scenario walk-5m
+	$(BUILD_DIR)/hexapods --scenario throughput
 	@echo "all scenario gates passed"
 
 format:

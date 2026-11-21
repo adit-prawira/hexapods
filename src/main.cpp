@@ -11,12 +11,11 @@
 #include "world/world.hpp"
 
 namespace {
-const char* kUsage =
-    "usage hexapods [--model <path>] [--journal <path>] [--seed <n>] [--scenario <name>]\n"
-    " --model     MJCF scene to load (default: models/hexapod.xml)"
-    " --journal   input journal output file (default: journal.log)\n"
-    " --seed      RNG seed, recorded in the journal (default: 0)\n"
-    " --scenario  headless pass/fail scenario";
+const char* kUsage = "usage hexapods [--model <path>] [--journal <path>] [--seed <n>] [--scenario <name>]\n"
+                     " --model     MJCF scene to load (default: models/hexapod.xml)"
+                     " --journal   input journal output file (default: journal.log)\n"
+                     " --seed      RNG seed, recorded in the journal (default: 0)\n"
+                     " --scenario  headless pass/fail scenario";
 };
 
 int main(int argc, char** argv) {
@@ -60,7 +59,7 @@ int main(int argc, char** argv) {
         Clock clock(world.timestep());
         Journal journal;
         Control control(world);
-        control.holdStandPose();
+        control.startWalking();
 
         journal.open(journalPath, modelPath, world.timestep(), seed);
 
@@ -70,8 +69,7 @@ int main(int argc, char** argv) {
         Viewer viewer(world, clock, journal, control);
         const uint64_t totalSteps = viewer.run();
         journal.close();
-        std::printf("session: %llu steps, journal: %s\n",
-                    static_cast<unsigned long long>(totalSteps), journalPath.c_str());
+        std::printf("session: %llu steps, journal: %s\n", static_cast<unsigned long long>(totalSteps), journalPath.c_str());
         return 0;
     } catch (const std::exception& error) {
         std::fprintf(stderr, "error: %s\n", error.what());

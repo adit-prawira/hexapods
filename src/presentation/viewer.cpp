@@ -5,24 +5,20 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl2.h"
 #include "mujoco/mujoco.h"
-#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
 
 namespace {
-void onGlfwError(int code, const char* description) {
-    std::fprintf(stderr, "glfw error %d: %s\n", code, description);
-}
+void onGlfwError(int code, const char* description) { std::fprintf(stderr, "glfw error %d: %s\n", code, description); }
 } // namespace
 
 struct WindowState {
     double scrollDelta = 0.0;
 };
 
-Viewer::Viewer(World& world, Clock& clock, Journal& journal, Control& control)
-    : world_(world), clock_(clock), journal_(journal), control_(control) {
+Viewer::Viewer(World& world, Clock& clock, Journal& journal, Control& control) : world_(world), clock_(clock), journal_(journal), control_(control) {
     glfwSetErrorCallback(onGlfwError);
     if (!glfwInit())
         throw std::runtime_error("glfwInit failed");
@@ -106,7 +102,7 @@ void Viewer::handleKeys() {
     const bool resetKeyDown = glfwGetKey(window_, GLFW_KEY_R) == GLFW_PRESS;
     if (resetKeyDown && !resetKeyWasDown_) {
         world_.reset();
-        control_.holdStandPose();
+        control_.startWalking();
         clock_.startEpoch();
         journal_.append({0, InputEvent::Type::Reset, "reset"});
     }
@@ -154,6 +150,7 @@ void Viewer::updateCamera() {
 void Viewer::stepWorld(double frameSeconds) {
     const uint64_t stepsDue = clock_.advance(frameSeconds);
     for (uint64_t step = 0; step < stepsDue; ++step) {
+        control_.update();
         world_.step();
         ++totalSteps_;
     }
@@ -164,8 +161,7 @@ void Viewer::draw() {
     int frameBufferHeight = 0;
 
     glfwGetFramebufferSize(window_, &frameBufferWidth, &frameBufferHeight);
-    mjv_updateScene(&world_.model(), &world_.renderData(), &option_, &perturb_, &camera_.state(),
-                    mjCAT_ALL, &scene_);
+    mjv_updateScene(&world_.model(), &world_.renderData(), &option_, &perturb_, &camera_.state(), mjCAT_ALL, &scene_);
     mjr_render(mjrRect{0, 0, frameBufferWidth, frameBufferHeight}, &scene_, &context_);
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window_);
@@ -184,6 +180,7 @@ void Viewer::drawHud() {
     ImGui::Text("tracking error: %.3f rad", world_.maxJointTrackingError());
     ImGui::Text("trunk pitch: %+.1f deg", world_.trunkPitch() * kRadiansToDegree);
     ImGui::Text("trunk height: %.3f", world_.trunkHeight());
+    ImGui::Text("distance: %.2f m", world_.traveledDistance());
 
     bool isActuatorEnabled = world_.isActuationEnabled();
     if (ImGui::Checkbox("Enable Actuator", &isActuatorEnabled)) {
