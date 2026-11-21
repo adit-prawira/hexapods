@@ -2,6 +2,8 @@
 // "given [scenario], then [expectation]". Gates self-register with the
 // Verification harness at startup; `make test` runs them.
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <cstdio>
 
 #include "control/control.hpp"
@@ -37,25 +39,31 @@ bool scenarioSmoke(const std::string& modelPath, uint64_t /*seed*/) {
     return passed;
 }
 
-// Given two identical worlds stepped in lockstep, then their state streams
-// are bit-identical. Two independently constructed Worlds — the comparison
-// can never see a value next to itself.
+// Given two identical worlds walking in lockstep, then their state streams
+// are bit-identical. Two independently constructed Worlds, gait active from
+// launch — the comparison can never see a value next to itself, and the gait
+// engine's ctrl-writing path is inside the claim.
 bool scenarioDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
     World firstWorld(modelPath);
     World secondWorld(modelPath);
+    Control firstControl(firstWorld);
+    Control secondControl(secondWorld);
+    firstControl.startWalking();
+    secondControl.startWalking();
     constexpr int stepCount = 500;
 
     for (int step = 0; step < stepCount; ++step) {
+        firstControl.update();
+        secondControl.update();
         firstWorld.step();
         secondWorld.step();
-        if (verification::hashState(firstWorld.model(), firstWorld.data()) !=
-            verification::hashState(secondWorld.model(), secondWorld.data())) {
+        if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
             std::printf("determinism: FAIL - state streams diverged at step %d\n", step);
             return false;
         }
     }
 
-    std::printf("determinism: given two identical worlds stepped %dx in lockstep, "
+    std::printf("determinism: given two identical worlds walking %dx in lockstep, "
                 "then state streams are bit-identical: PASS\n",
                 stepCount);
     return true;
@@ -121,6 +129,88 @@ bool scenarioSanity(const std::string& modelPath, uint64_t /*seed*/) {
     return passed;
 }
 
+// Given the hexapod standing, then commanded to walk, it covers 5 m of
+// forward displacement within 60 s of walking, straight (lateral drift
+// <= 0.25 m) with the trunk never near the ground (>= 0.10 m — the stand
+// gate's geometric band: standing 0.16 m, belly rest 0.055 m). The 4 s
+// stand-up transient is excluded from the clock, as in the stand gate.
+// Thresholds are the story #11 acceptance numbers and geometry, not code
+// outputs. Stops early at 5 m so the time-to-distance is the honest number.
+bool scenarioWalk5m(const std::string& modelPath, uint64_t /*seed*/) {
+    World world(modelPath);
+    Control control(world);
+    control.holdStandPose();
+
+    constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
+    for (int step = 0; step < standUpSteps; ++step) {
+        world.step();
+    }
+
+    const int trunkBody = mj_name2id(&world.model(), mjOBJ_BODY, "trunk");
+    const double startLateral = world.data().xpos[3 * trunkBody + 1];
+    const double startDistance = world.traveledDistance();
+
+    control.startWalking();
+
+    constexpr int walkBudgetSteps = 30000; // 60.0 s at dt = 0.002
+    constexpr double targetDistance = 5.0;
+    constexpr double maxLateralDrift = 0.25;
+    constexpr double minTrunkHeight = 0.10;
+
+    double distanceCovered = 0.0;
+    double worstLateralDrift = 0.0;
+    double lowestTrunkHeight = 2.0;
+    int stepsWalked = 0;
+
+    const auto walkStartWall = std::chrono::steady_clock::now();
+    for (int step = 0; step < walkBudgetSteps; ++step) {
+        control.update();
+        world.step();
+        ++stepsWalked;
+
+        distanceCovered = world.traveledDistance() - startDistance;
+        worstLateralDrift = std::max(worstLateralDrift, std::abs(world.data().xpos[3 * trunkBody + 1] - startLateral));
+        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+
+        if (distanceCovered >= targetDistance)
+            break;
+    }
+    const double walkWallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - walkStartWall).count();
+
+    const bool passed = distanceCovered >= targetDistance && worstLateralDrift <= maxLateralDrift && lowestTrunkHeight >= minTrunkHeight;
+    std::printf("walk-5m: given the walk commanded after stand-up, then %.2f m covered "
+                "in %.1f s (need >= 5.0 m in <= 60.0 s), lateral drift %.3f m "
+                "(need <= 0.250), lowest trunk %.3f m (need >= 0.100), "
+                "%.0f steps/s: %s\n",
+                distanceCovered, stepsWalked * world.timestep(), worstLateralDrift, lowestTrunkHeight, stepsWalked / walkWallSeconds, passed ? "PASS" : "FAIL");
+    return passed;
+}
+
+// Given the hexapod walking headless, then physics steps at >= 2000 steps/s
+// (the PRD performance budget for ~30 DOF). The floor sits far below what the
+// model actually achieves, so machine variance cannot flip the verdict.
+bool scenarioThroughput(const std::string& modelPath, uint64_t /*seed*/) {
+    World world(modelPath);
+    Control control(world);
+    control.startWalking();
+
+    constexpr int measuredSteps = 5000; // 10.0 s of simulated time
+    const auto startWall = std::chrono::steady_clock::now();
+    for (int step = 0; step < measuredSteps; ++step) {
+        control.update();
+        world.step();
+    }
+    const double wallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - startWall).count();
+    const double stepsPerSecond = measuredSteps / wallSeconds;
+
+    constexpr double minStepsPerSecond = 2000.0;
+    const bool passed = stepsPerSecond >= minStepsPerSecond;
+    std::printf("throughput: given %d headless walking steps on the hexapod, then "
+                "%.0f steps/s (need >= 2000): %s\n",
+                measuredSteps, stepsPerSecond, passed ? "PASS" : "FAIL");
+    return passed;
+}
+
 // Self-registration: the gates exist in the suite because this initializer
 // runs at startup, before main.
 const bool registered = [] {
@@ -128,6 +218,8 @@ const bool registered = [] {
     verification::registerScenario("determinism", &scenarioDeterminism);
     verification::registerScenario("stand", &scenarioStand);
     verification::registerScenario("sanity", &scenarioSanity);
+    verification::registerScenario("walk-5m", &scenarioWalk5m);
+    verification::registerScenario("throughput", &scenarioThroughput);
     return true;
 }();
 

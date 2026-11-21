@@ -16,8 +16,7 @@ uint64_t hashFile(const std::string& path) {
 }
 } // namespace
 
-void Journal::open(const std::string& path, const std::string& modelPath, double timestep,
-                   uint64_t seed) {
+void Journal::open(const std::string& path, const std::string& modelPath, double timestep, uint64_t seed) {
     output_.open(path, std::ios::out | std::ios::trunc);
     output_ << "hexapods-journal v1\n";
     output_ << "model " << modelPath << " " << std::hex << hashFile(modelPath) << std::dec << "\n";
@@ -29,8 +28,7 @@ void Journal::append(const InputEvent& event) {
     if (!output_.is_open())
         return;
 
-    output_ << event.stepIndex << " " << static_cast<char>(event.type) << " " << event.payload
-            << "\n";
+    output_ << event.stepIndex << " " << static_cast<char>(event.type) << " " << event.payload << "\n";
 }
 
 void Journal::close() {

@@ -14,9 +14,7 @@ std::map<std::string, ScenarioFunction>& registry() {
 
 } // namespace
 
-void registerScenario(const std::string& name, ScenarioFunction scenario) {
-    registry()[name] = scenario;
-}
+void registerScenario(const std::string& name, ScenarioFunction scenario) { registry()[name] = scenario; }
 
 bool runScenario(const std::string& name, const std::string& modelPath, uint64_t seed) {
     const auto& scenarios = registry();

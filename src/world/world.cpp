@@ -21,6 +21,8 @@ World::World(const std::string& modelPath) {
     // Trunk is the robot central body, and needed to be resolved once. Models without
     // a trunk simply cannot be resolved
     trunkBodyId_ = mj_name2id(model_, mjOBJ_BODY, "trunk");
+    if (trunkBodyId_ >= 0)
+        startTrunkXPosition_ = data_->xpos[3 * trunkBodyId_];
 }
 
 World::~World() {
@@ -40,15 +42,15 @@ void World::reset() {
     // the HUD reads one frame of stale pre-reset state after R.
     mj_forward(model_, data_);
     stepIndex_ = 0;
+    if (trunkBodyId_ >= 0)
+        startTrunkXPosition_ = data_->xpos[3 * trunkBodyId_];
 }
 
 void World::enableActuation() { model_->opt.disableflags &= ~mjDSBL_ACTUATION; }
 
 void World::disabledActuation() { model_->opt.disableflags |= mjDSBL_ACTUATION; }
 
-bool World::isActuationEnabled() const {
-    return (model_->opt.disableflags & mjDSBL_ACTUATION) == 0;
-}
+bool World::isActuationEnabled() const { return (model_->opt.disableflags & mjDSBL_ACTUATION) == 0; }
 
 void World::setActuatorTarget(const std::string& actuatorName, double target) {
     const int actuator = mj_name2id(model_, mjOBJ_ACTUATOR, actuatorName.c_str());
@@ -82,6 +84,11 @@ double World::trunkPitch() const {
 double World::trunkHeight() const {
     checkTrunkRequirement();
     return data_->xpos[3 * trunkBodyId_ + 2];
+}
+
+double World::traveledDistance() const {
+    checkTrunkRequirement();
+    return data_->xpos[3 * trunkBodyId_] - startTrunkXPosition_;
 }
 
 void World::checkTrunkRequirement() const {

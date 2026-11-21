@@ -16,21 +16,13 @@ class Camera {
         camera_.elevation = -25;
     }
 
-    void orbit(const mjModel& model, double dx, double dy) {
-        mjv_moveCamera(&model, mjMOUSE_ROTATE_V, kSensitivity * dx, kSensitivity * dy, &camera_);
-    }
+    void orbit(const mjModel& model, double dx, double dy) { mjv_moveCamera(&model, mjMOUSE_ROTATE_V, kSensitivity * dx, kSensitivity * dy, &camera_); }
 
-    void pan(const mjModel& model, double dx, double dy) {
-        mjv_moveCamera(&model, mjMOUSE_MOVE_V, kSensitivity * dx, kSensitivity * dy, &camera_);
-    }
+    void pan(const mjModel& model, double dx, double dy) { mjv_moveCamera(&model, mjMOUSE_MOVE_V, kSensitivity * dx, kSensitivity * dy, &camera_); }
 
-    void zoom(const mjModel& model, double dx, double dy) {
-        mjv_moveCamera(&model, mjMOUSE_ZOOM, kSensitivity * dx, kSensitivity * dy, &camera_);
-    }
+    void zoom(const mjModel& model, double dx, double dy) { mjv_moveCamera(&model, mjMOUSE_ZOOM, kSensitivity * dx, kSensitivity * dy, &camera_); }
 
-    void zoomScroll(const mjModel& model, double scroll) {
-        mjv_moveCamera(&model, mjMOUSE_ZOOM, 0.0, -0.1 * scroll, &camera_);
-    }
+    void zoomScroll(const mjModel& model, double scroll) { mjv_moveCamera(&model, mjMOUSE_ZOOM, 0.0, -0.1 * scroll, &camera_); }
 
     mjvCamera& state() { return camera_; }
 
