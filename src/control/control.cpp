@@ -76,15 +76,16 @@ void Control::holdStandPose() {
 
 void Control::startWalking() {
     is_walking_ = true;
-    update();
+    gaitPhase_ = 0.0;
 }
 
 void Control::update() {
     if (!is_walking_)
         return;
 
-    // giat phase is control's own clock. cycles = steps x timestep x frequency.
-    const double cycles = world_.stepIndex() * world_.timestep() * parameters_.frequency * parameters_.speed;
+    // Gait phase is Control's own clock accumulated one step at time
+    // thus live frequency change bends the trajectory from where it is instead of teleporting it by (new frequency x elapsed time)
+    const double cycles = gaitPhase_;
     const double heightScale = parameters_.stanceHeight / kNominalStandHeight;
 
     for (int legId = 0; legId < kLegCount; ++legId) {
@@ -106,6 +107,7 @@ void Control::update() {
 
         writeLegTargets(legId, coxa, femur, tibia);
     }
+    gaitPhase_ += world_.timestep() * parameters_.frequency * parameters_.speed;
 }
 
 void Control::writeLegTargets(int legId, double coxa, double femur, double tibia) {

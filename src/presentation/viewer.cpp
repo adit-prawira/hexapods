@@ -1,4 +1,5 @@
 #include "presentation/viewer.hpp"
+#include "control/control.hpp"
 #include "events/input_event.hpp"
 #include "events/journal.hpp"
 #include "imgui.h"
@@ -9,6 +10,7 @@
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
+#include <string>
 
 namespace {
 void onGlfwError(int code, const char* description) { std::fprintf(stderr, "glfw error %d: %s\n", code, description); }
@@ -102,6 +104,7 @@ void Viewer::handleKeys() {
     const bool resetKeyDown = glfwGetKey(window_, GLFW_KEY_R) == GLFW_PRESS;
     if (resetKeyDown && !resetKeyWasDown_) {
         world_.reset();
+        control_.resetGaitParameters();
         control_.startWalking();
         clock_.startEpoch();
         journal_.append({0, InputEvent::Type::Reset, "reset"});
@@ -191,5 +194,17 @@ void Viewer::drawHud() {
         std::string label = isActuatorEnabled ? "Actuator ON" : "Actuator OFF";
         journal_.append({world_.stepIndex(), InputEvent::Type::Toggle, label});
     }
+
+    GaitParameters& parameters = control_.gaitParameters();
+    const auto slider = [&](const char* name, const char* key, double& parameter, float minimum, float maximum, const char* format) {
+        float value = static_cast<float>(parameter);
+        if (ImGui::SliderFloat(name, &value, minimum, maximum, format)) {
+            parameter = value;
+            journal_.append({world_.stepIndex(), InputEvent::Type::Slider, std::string(key) + " " + std::to_string(value)});
+        };
+    };
+    slider("Frequency", "frequency", parameters.frequency, 0.5f, 3.0f, "%.2f Hz");
+    slider("Stride", "stride", parameters.stride, 0.0f, 0.17f, "%.3f m");
+    slider("Stance Height", "stanceHeight", parameters.stanceHeight, 0.10f, 0.17f, "%.3f m");
     ImGui::End();
 }

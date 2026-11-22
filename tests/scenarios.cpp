@@ -5,8 +5,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 #include "control/control.hpp"
+#include "events/input_event.hpp"
 #include "verification/scenario.hpp"
 #include "world/world.hpp"
 
@@ -211,6 +214,79 @@ bool scenarioThroughput(const std::string& modelPath, uint64_t /*seed*/) {
     return passed;
 }
 
+// Given the same scripted slider session — InputEvents stamped by effect-step,
+// payloads in the exact "key value" format the viewer journals — applied into
+// two independently constructed worlds walking in lockstep, then their state
+// streams are bit-identical. A third, no-slider baseline must end at a
+// DIFFERENT hash: that leg kills the false positive where ignored events leave
+// both worlds identical (a pure lockstep gate cannot tell the sliders did
+// nothing). Values sit inside the slider ranges; same-stamp events exercise
+// last-wins. No threshold is recomputed from code — the claim is bit equality.
+bool scenarioSliderDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
+    const std::vector<InputEvent> sliderSession{
+        {100, InputEvent::Type::Slider, "frequency 2.5"}, {100, InputEvent::Type::Slider, "stride 0.14"}, {300, InputEvent::Type::Slider, "stanceHeight 0.12"},
+        {500, InputEvent::Type::Slider, "frequency 1.0"}, {700, InputEvent::Type::Slider, "stride 0.05"}, {700, InputEvent::Type::Slider, "frequency 2.0"},
+    };
+    constexpr int stepCount = 1000;
+
+    World firstWorld(modelPath);
+    World secondWorld(modelPath);
+    World baselineWorld(modelPath);
+    Control firstControl(firstWorld);
+    Control secondControl(secondWorld);
+    Control baselineControl(baselineWorld);
+    firstControl.startWalking();
+    secondControl.startWalking();
+    baselineControl.startWalking();
+
+    // Apply the session at the effect-step: when stepIndex() == stamp, before
+    // the update() that consumes it — the same convention the viewer stamps by.
+    const auto applySession = [&](Control& control, int step) {
+        for (const InputEvent& event : sliderSession) {
+            if (event.stepIndex != static_cast<uint64_t>(step))
+                continue;
+            const auto separator = event.payload.find(' ');
+            const std::string key = event.payload.substr(0, separator);
+            const double value = std::stod(event.payload.substr(separator + 1));
+            GaitParameters& parameters = control.gaitParameters();
+            if (key == "frequency")
+                parameters.frequency = value;
+            else if (key == "stride")
+                parameters.stride = value;
+            else if (key == "stanceHeight")
+                parameters.stanceHeight = value;
+        }
+    };
+
+    for (int step = 0; step < stepCount; ++step) {
+        applySession(firstControl, step);
+        applySession(secondControl, step);
+        firstControl.update();
+        secondControl.update();
+        baselineControl.update();
+        firstWorld.step();
+        secondWorld.step();
+        baselineWorld.step();
+        if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
+            std::printf("slider-determinism: FAIL - state streams diverged at step %d\n", step);
+            return false;
+        }
+    }
+
+    const uint64_t sessionHash = verification::hashState(firstWorld.model(), firstWorld.data());
+    const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
+    if (sessionHash == baselineHash) {
+        std::printf("slider-determinism: FAIL - slider session left the trajectory unchanged (events ignored?)\n");
+        return false;
+    }
+
+    std::printf("slider-determinism: given the same scripted slider session applied at effect-steps "
+                "into two worlds walking %dx in lockstep, then state streams are bit-identical "
+                "and differ from the no-slider baseline: PASS\n",
+                stepCount);
+    return true;
+}
+
 // Self-registration: the gates exist in the suite because this initializer
 // runs at startup, before main.
 const bool registered = [] {
@@ -220,6 +296,7 @@ const bool registered = [] {
     verification::registerScenario("sanity", &scenarioSanity);
     verification::registerScenario("walk-5m", &scenarioWalk5m);
     verification::registerScenario("throughput", &scenarioThroughput);
+    verification::registerScenario("slider-determinism", &scenarioSliderDeterminism);
     return true;
 }();
 
