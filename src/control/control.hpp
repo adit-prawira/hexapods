@@ -23,7 +23,8 @@ class Control {
     void startWalking();
 
     void update();
-    GaitParameters& parameters() { return parameters_; }
+    GaitParameters& gaitParameters() { return parameters_; }
+    void resetGaitParameters() { parameters_ = GaitParameters{}; }
 
   private:
     void writeLegTargets(int legId, double coxa, double femur, double tibia);
@@ -34,6 +35,8 @@ class Control {
     GaitParameters parameters_;
 
     bool is_walking_ = false;
+    double gaitPhase_ = 0.0;
+
     std::array<double, kLegCount> sweepSign_;
     std::array<double, kLegCount> footReach_;
 };
