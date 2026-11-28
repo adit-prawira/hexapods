@@ -1,6 +1,6 @@
 ---
 BasedOnStyle: LLVM
-IndentWidth: 4 
+IndentWidth: 2 
 ColumnLimit: 180 
 PointerAlignment: Left 
 

@@ -3,19 +3,19 @@
 #include <string>
 
 struct InputEvent {
-    enum Type : char {
-        Key = 'k',     // teleop/keyboard commands
-        Reset = 'r',   // world reinitialized; starts new epoch
-        Perturb = 'p', // mouse-grab forces
-        Slider = 's',  // live parameter changes,
-        Toggle = 't',  // toogle to enable/disable physics
-        Gait = 'g',    // commanded gait to switch gait type at the next cycle
-        Pose = 'o',    // toggle pose to sit or stand
-    };
+  enum Type : char {
+    Key = 'k',     // teleop/keyboard commands
+    Reset = 'r',   // world reinitialized; starts new epoch
+    Perturb = 'p', // mouse-grab forces
+    Slider = 's',  // live parameter changes,
+    Toggle = 't',  // toogle to enable/disable physics
+    Gait = 'g',    // commanded gait to switch gait type at the next cycle
+    Pose = 'o',    // toggle pose to sit or stand
+  };
 
-    // the step at which an event took effect
-    uint64_t stepIndex;
+  // the step at which an event took effect
+  uint64_t stepIndex;
 
-    Type type;
-    std::string payload;
+  Type type;
+  std::string payload;
 };

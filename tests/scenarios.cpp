@@ -21,26 +21,26 @@ namespace {
 // principles, not from the code: free fall covers the 1.08 m gap in ~0.47 s,
 // resting height is 0.12 m — 0.3 m sits far from both.
 bool scenarioSmoke(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    const mjModel& model = world.model();
-    const int dropBoxBody = mj_name2id(&model, mjOBJ_BODY, "drop_box");
-    if (dropBoxBody < 0) {
-        std::printf("smoke: FAIL - body 'drop_box' not found in model\n");
-        return false;
-    }
+  World world(modelPath);
+  const mjModel& model = world.model();
+  const int dropBoxBody = mj_name2id(&model, mjOBJ_BODY, "drop_box");
+  if (dropBoxBody < 0) {
+    std::printf("smoke: FAIL - body 'drop_box' not found in model\n");
+    return false;
+  }
 
-    const double startZ = world.data().xpos[3 * dropBoxBody + 2];
-    constexpr int stepCount = 500; // 1.0 s of simulated time at dt = 0.002
-    for (int step = 0; step < stepCount; ++step) {
-        world.step();
-    }
-    const double endZ = world.data().xpos[3 * dropBoxBody + 2];
+  const double startZ = world.data().xpos[3 * dropBoxBody + 2];
+  constexpr int stepCount = 500; // 1.0 s of simulated time at dt = 0.002
+  for (int step = 0; step < stepCount; ++step) {
+    world.step();
+  }
+  const double endZ = world.data().xpos[3 * dropBoxBody + 2];
 
-    const bool passed = endZ < startZ && endZ < 0.3;
-    std::printf("smoke: given the dev scene and %d steps of gravity, "
-                "then drop_box falls %.3f -> %.3f: %s\n",
-                stepCount, startZ, endZ, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = endZ < startZ && endZ < 0.3;
+  std::printf("smoke: given the dev scene and %d steps of gravity, "
+              "then drop_box falls %.3f -> %.3f: %s\n",
+              stepCount, startZ, endZ, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given two identical worlds walking in lockstep, then their state streams
@@ -48,29 +48,29 @@ bool scenarioSmoke(const std::string& modelPath, uint64_t /*seed*/) {
 // launch — the comparison can never see a value next to itself, and the gait
 // engine's ctrl-writing path is inside the claim.
 bool scenarioDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
-    World firstWorld(modelPath);
-    World secondWorld(modelPath);
-    Control firstControl(firstWorld);
-    Control secondControl(secondWorld);
-    firstControl.startWalking();
-    secondControl.startWalking();
-    constexpr int stepCount = 500;
+  World firstWorld(modelPath);
+  World secondWorld(modelPath);
+  Control firstControl(firstWorld);
+  Control secondControl(secondWorld);
+  firstControl.startWalking();
+  secondControl.startWalking();
+  constexpr int stepCount = 500;
 
-    for (int step = 0; step < stepCount; ++step) {
-        firstControl.update();
-        secondControl.update();
-        firstWorld.step();
-        secondWorld.step();
-        if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
-            std::printf("determinism: FAIL - state streams diverged at step %d\n", step);
-            return false;
-        }
+  for (int step = 0; step < stepCount; ++step) {
+    firstControl.update();
+    secondControl.update();
+    firstWorld.step();
+    secondWorld.step();
+    if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
+      std::printf("determinism: FAIL - state streams diverged at step %d\n", step);
+      return false;
     }
+  }
 
-    std::printf("determinism: given two identical worlds walking %dx in lockstep, "
-                "then state streams are bit-identical: PASS\n",
-                stepCount);
-    return true;
+  std::printf("determinism: given two identical worlds walking %dx in lockstep, "
+              "then state streams are bit-identical: PASS\n",
+              stepCount);
+  return true;
 }
 
 // Given the hexapod launched with the stand pose commanded, then it stands
@@ -82,30 +82,30 @@ bool scenarioDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
 // drop less 0.16 m of femur rise), belly rest is 0.055 m; 0.10 m sits far
 // from both.
 bool scenarioStand(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    Control control(world);
-    control.holdStandPose();
+  World world(modelPath);
+  Control control(world);
+  control.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
-    constexpr int holdSteps = 30000;   // 60.0 s the story requires held
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-    }
+  constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
+  constexpr int holdSteps = 30000;   // 60.0 s the story requires held
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+  }
 
-    double worstTrackingError = 0.0;
-    double lowestTrunkHeight = 2.0;
-    for (int step = 0; step < holdSteps; ++step) {
-        world.step();
-        worstTrackingError = std::max(worstTrackingError, world.maxJointTrackingError());
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
-    }
+  double worstTrackingError = 0.0;
+  double lowestTrunkHeight = 2.0;
+  for (int step = 0; step < holdSteps; ++step) {
+    world.step();
+    worstTrackingError = std::max(worstTrackingError, world.maxJointTrackingError());
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+  }
 
-    const bool passed = worstTrackingError < 0.05 && lowestTrunkHeight >= 0.10;
-    std::printf("stand: given the stand pose commanded from launch, then over "
-                "the last 60 s the worst tracking error is %.3f rad (need < 0.050) "
-                "and the lowest trunk height is %.3f m (need >= 0.100): %s\n",
-                worstTrackingError, lowestTrunkHeight, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = worstTrackingError < 0.05 && lowestTrunkHeight >= 0.10;
+  std::printf("stand: given the stand pose commanded from launch, then over "
+              "the last 60 s the worst tracking error is %.3f rad (need < 0.050) "
+              "and the lowest trunk height is %.3f m (need >= 0.100): %s\n",
+              worstTrackingError, lowestTrunkHeight, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod launched with actuation disabled, then gravity wins:
@@ -115,22 +115,22 @@ bool scenarioStand(const std::string& modelPath, uint64_t /*seed*/) {
 // far from both. The permanent honest-physics check: no hidden force can
 // hold the robot up.
 bool scenarioSanity(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    Control control(world);
-    control.holdStandPose(); // targets parked; the breaker stays open
-    world.disabledActuation();
+  World world(modelPath);
+  Control control(world);
+  control.holdStandPose(); // targets parked; the breaker stays open
+  world.disabledActuation();
 
-    constexpr int collapseSteps = 1500; // 3.0 s of pure gravity and contact
-    for (int step = 0; step < collapseSteps; ++step) {
-        world.step();
-    }
+  constexpr int collapseSteps = 1500; // 3.0 s of pure gravity and contact
+  for (int step = 0; step < collapseSteps; ++step) {
+    world.step();
+  }
 
-    const double trunkHeight = world.trunkHeight();
-    const bool passed = trunkHeight < 0.08;
-    std::printf("sanity: given actuation disabled from launch, then after 3.0 s of "
-                "gravity the trunk rests at %.3f m (need < 0.080): %s\n",
-                trunkHeight, passed ? "PASS" : "FAIL");
-    return passed;
+  const double trunkHeight = world.trunkHeight();
+  const bool passed = trunkHeight < 0.08;
+  std::printf("sanity: given actuation disabled from launch, then after 3.0 s of "
+              "gravity the trunk rests at %.3f m (need < 0.080): %s\n",
+              trunkHeight, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod standing, then commanded to walk, it covers 5 m of
@@ -141,78 +141,78 @@ bool scenarioSanity(const std::string& modelPath, uint64_t /*seed*/) {
 // Thresholds are the story #11 acceptance numbers and geometry, not code
 // outputs. Stops early at 5 m so the time-to-distance is the honest number.
 bool scenarioWalk5m(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    Control control(world);
-    control.holdStandPose();
+  World world(modelPath);
+  Control control(world);
+  control.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-    }
+  constexpr int standUpSteps = 2000; // 4.0 s for the stand-up transient
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+  }
 
-    const int trunkBody = mj_name2id(&world.model(), mjOBJ_BODY, "trunk");
-    const double startLateral = world.data().xpos[3 * trunkBody + 1];
-    const double startDistance = world.traveledDistance();
+  const int trunkBody = mj_name2id(&world.model(), mjOBJ_BODY, "trunk");
+  const double startLateral = world.data().xpos[3 * trunkBody + 1];
+  const double startDistance = world.traveledDistance();
 
-    control.startWalking();
+  control.startWalking();
 
-    constexpr int walkBudgetSteps = 30000; // 60.0 s at dt = 0.002
-    constexpr double targetDistance = 5.0;
-    constexpr double maxLateralDrift = 0.25;
-    constexpr double minTrunkHeight = 0.10;
+  constexpr int walkBudgetSteps = 30000; // 60.0 s at dt = 0.002
+  constexpr double targetDistance = 5.0;
+  constexpr double maxLateralDrift = 0.25;
+  constexpr double minTrunkHeight = 0.10;
 
-    double distanceCovered = 0.0;
-    double worstLateralDrift = 0.0;
-    double lowestTrunkHeight = 2.0;
-    int stepsWalked = 0;
+  double distanceCovered = 0.0;
+  double worstLateralDrift = 0.0;
+  double lowestTrunkHeight = 2.0;
+  int stepsWalked = 0;
 
-    const auto walkStartWall = std::chrono::steady_clock::now();
-    for (int step = 0; step < walkBudgetSteps; ++step) {
-        control.update();
-        world.step();
-        ++stepsWalked;
+  const auto walkStartWall = std::chrono::steady_clock::now();
+  for (int step = 0; step < walkBudgetSteps; ++step) {
+    control.update();
+    world.step();
+    ++stepsWalked;
 
-        distanceCovered = world.traveledDistance() - startDistance;
-        worstLateralDrift = std::max(worstLateralDrift, std::abs(world.data().xpos[3 * trunkBody + 1] - startLateral));
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+    distanceCovered = world.traveledDistance() - startDistance;
+    worstLateralDrift = std::max(worstLateralDrift, std::abs(world.data().xpos[3 * trunkBody + 1] - startLateral));
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
 
-        if (distanceCovered >= targetDistance)
-            break;
-    }
-    const double walkWallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - walkStartWall).count();
+    if (distanceCovered >= targetDistance)
+      break;
+  }
+  const double walkWallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - walkStartWall).count();
 
-    const bool passed = distanceCovered >= targetDistance && worstLateralDrift <= maxLateralDrift && lowestTrunkHeight >= minTrunkHeight;
-    std::printf("walk-5m: given the walk commanded after stand-up, then %.2f m covered "
-                "in %.1f s (need >= 5.0 m in <= 60.0 s), lateral drift %.3f m "
-                "(need <= 0.250), lowest trunk %.3f m (need >= 0.100), "
-                "%.0f steps/s: %s\n",
-                distanceCovered, stepsWalked * world.timestep(), worstLateralDrift, lowestTrunkHeight, stepsWalked / walkWallSeconds, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = distanceCovered >= targetDistance && worstLateralDrift <= maxLateralDrift && lowestTrunkHeight >= minTrunkHeight;
+  std::printf("walk-5m: given the walk commanded after stand-up, then %.2f m covered "
+              "in %.1f s (need >= 5.0 m in <= 60.0 s), lateral drift %.3f m "
+              "(need <= 0.250), lowest trunk %.3f m (need >= 0.100), "
+              "%.0f steps/s: %s\n",
+              distanceCovered, stepsWalked * world.timestep(), worstLateralDrift, lowestTrunkHeight, stepsWalked / walkWallSeconds, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod walking headless, then physics steps at >= 2000 steps/s
 // (the PRD performance budget for ~30 DOF). The floor sits far below what the
 // model actually achieves, so machine variance cannot flip the verdict.
 bool scenarioThroughput(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    Control control(world);
-    control.startWalking();
+  World world(modelPath);
+  Control control(world);
+  control.startWalking();
 
-    constexpr int measuredSteps = 5000; // 10.0 s of simulated time
-    const auto startWall = std::chrono::steady_clock::now();
-    for (int step = 0; step < measuredSteps; ++step) {
-        control.update();
-        world.step();
-    }
-    const double wallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - startWall).count();
-    const double stepsPerSecond = measuredSteps / wallSeconds;
+  constexpr int measuredSteps = 5000; // 10.0 s of simulated time
+  const auto startWall = std::chrono::steady_clock::now();
+  for (int step = 0; step < measuredSteps; ++step) {
+    control.update();
+    world.step();
+  }
+  const double wallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - startWall).count();
+  const double stepsPerSecond = measuredSteps / wallSeconds;
 
-    constexpr double minStepsPerSecond = 2000.0;
-    const bool passed = stepsPerSecond >= minStepsPerSecond;
-    std::printf("throughput: given %d headless walking steps on the hexapod, then "
-                "%.0f steps/s (need >= 2000): %s\n",
-                measuredSteps, stepsPerSecond, passed ? "PASS" : "FAIL");
-    return passed;
+  constexpr double minStepsPerSecond = 2000.0;
+  const bool passed = stepsPerSecond >= minStepsPerSecond;
+  std::printf("throughput: given %d headless walking steps on the hexapod, then "
+              "%.0f steps/s (need >= 2000): %s\n",
+              measuredSteps, stepsPerSecond, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the same scripted input session — InputEvents stamped by effect-step,
@@ -231,92 +231,92 @@ bool scenarioThroughput(const std::string& modelPath, uint64_t /*seed*/) {
 // walking inside the run. No threshold is recomputed from code — the claim is
 // bit equality.
 bool scenarioSliderDeterminism(const std::string& modelPath, uint64_t /*seed*/) {
-    const std::vector<InputEvent> sliderSession{
-        {100, InputEvent::Type::Slider, "frequency 2.5"},     {100, InputEvent::Type::Slider, "stride 0.14"},   {200, InputEvent::Type::Pose, "sit"},
-        {300, InputEvent::Type::Slider, "stanceHeight 0.12"}, {500, InputEvent::Type::Slider, "frequency 1.0"}, {600, InputEvent::Type::Gait, "ripple"},
-        {700, InputEvent::Type::Slider, "stride 0.05"},       {700, InputEvent::Type::Slider, "frequency 2.0"}, {800, InputEvent::Type::Slider, "turnRate 1.0"},
-        {900, InputEvent::Type::Slider, "speed 2.0"},         {1200, InputEvent::Type::Pose, "stand"},
-    };
-    constexpr int stepCount = 2500;
+  const std::vector<InputEvent> sliderSession{
+      {100, InputEvent::Type::Slider, "frequency 2.5"},     {100, InputEvent::Type::Slider, "stride 0.14"},   {200, InputEvent::Type::Pose, "sit"},
+      {300, InputEvent::Type::Slider, "stanceHeight 0.12"}, {500, InputEvent::Type::Slider, "frequency 1.0"}, {600, InputEvent::Type::Gait, "ripple"},
+      {700, InputEvent::Type::Slider, "stride 0.05"},       {700, InputEvent::Type::Slider, "frequency 2.0"}, {800, InputEvent::Type::Slider, "turnRate 1.0"},
+      {900, InputEvent::Type::Slider, "speed 2.0"},         {1200, InputEvent::Type::Pose, "stand"},
+  };
+  constexpr int stepCount = 2500;
 
-    World firstWorld(modelPath);
-    World secondWorld(modelPath);
-    World baselineWorld(modelPath);
-    Control firstControl(firstWorld);
-    Control secondControl(secondWorld);
-    Control baselineControl(baselineWorld);
-    firstControl.startWalking();
-    secondControl.startWalking();
-    baselineControl.startWalking();
+  World firstWorld(modelPath);
+  World secondWorld(modelPath);
+  World baselineWorld(modelPath);
+  Control firstControl(firstWorld);
+  Control secondControl(secondWorld);
+  Control baselineControl(baselineWorld);
+  firstControl.startWalking();
+  secondControl.startWalking();
+  baselineControl.startWalking();
 
-    // Apply the session at the effect-step: when stepIndex() == stamp, before
-    // the update() that consumes it — the same convention the viewer stamps by.
-    const auto applySession = [&](Control& control, int step) {
-        for (const InputEvent& event : sliderSession) {
-            if (event.stepIndex != static_cast<uint64_t>(step))
-                continue;
-            GaitParameters& parameters = control.gaitParameters();
-            if (event.type == InputEvent::Type::Gait) {
-                if (event.payload == "tripod")
-                    parameters.gait = GaitParameters::Gait::Tripod;
-                else if (event.payload == "ripple")
-                    parameters.gait = GaitParameters::Gait::Ripple;
-                else if (event.payload == "wave")
-                    parameters.gait = GaitParameters::Gait::Wave;
-                continue;
-            }
-            // Pose payloads are bare tokens like Gait — branch before the
-            // "key value" parse, which would find no space.
-            if (event.type == InputEvent::Type::Pose) {
-                if (event.payload == "sit")
-                    control.sit();
-                else if (event.payload == "stand")
-                    control.stand();
-                continue;
-            }
-            const auto separator = event.payload.find(' ');
-            const std::string key = event.payload.substr(0, separator);
-            const double value = std::stod(event.payload.substr(separator + 1));
-            if (key == "frequency")
-                parameters.frequency = value;
-            else if (key == "stride")
-                parameters.stride = value;
-            else if (key == "stanceHeight")
-                parameters.stanceHeight = value;
-            else if (key == "turnRate")
-                parameters.turnRate = value;
-            else if (key == "speed")
-                parameters.speed = value;
-        }
-    };
-
-    for (int step = 0; step < stepCount; ++step) {
-        applySession(firstControl, step);
-        applySession(secondControl, step);
-        firstControl.update();
-        secondControl.update();
-        baselineControl.update();
-        firstWorld.step();
-        secondWorld.step();
-        baselineWorld.step();
-        if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
-            std::printf("slider-determinism: FAIL - state streams diverged at step %d\n", step);
-            return false;
-        }
+  // Apply the session at the effect-step: when stepIndex() == stamp, before
+  // the update() that consumes it — the same convention the viewer stamps by.
+  const auto applySession = [&](Control& control, int step) {
+    for (const InputEvent& event : sliderSession) {
+      if (event.stepIndex != static_cast<uint64_t>(step))
+        continue;
+      GaitParameters& parameters = control.gaitParameters();
+      if (event.type == InputEvent::Type::Gait) {
+        if (event.payload == "tripod")
+          parameters.gait = GaitParameters::Gait::Tripod;
+        else if (event.payload == "ripple")
+          parameters.gait = GaitParameters::Gait::Ripple;
+        else if (event.payload == "wave")
+          parameters.gait = GaitParameters::Gait::Wave;
+        continue;
+      }
+      // Pose payloads are bare tokens like Gait — branch before the
+      // "key value" parse, which would find no space.
+      if (event.type == InputEvent::Type::Pose) {
+        if (event.payload == "sit")
+          control.sit();
+        else if (event.payload == "stand")
+          control.stand();
+        continue;
+      }
+      const auto separator = event.payload.find(' ');
+      const std::string key = event.payload.substr(0, separator);
+      const double value = std::stod(event.payload.substr(separator + 1));
+      if (key == "frequency")
+        parameters.frequency = value;
+      else if (key == "stride")
+        parameters.stride = value;
+      else if (key == "stanceHeight")
+        parameters.stanceHeight = value;
+      else if (key == "turnRate")
+        parameters.turnRate = value;
+      else if (key == "speed")
+        parameters.speed = value;
     }
+  };
 
-    const uint64_t sessionHash = verification::hashState(firstWorld.model(), firstWorld.data());
-    const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
-    if (sessionHash == baselineHash) {
-        std::printf("slider-determinism: FAIL - input session left the trajectory unchanged (events ignored?)\n");
-        return false;
+  for (int step = 0; step < stepCount; ++step) {
+    applySession(firstControl, step);
+    applySession(secondControl, step);
+    firstControl.update();
+    secondControl.update();
+    baselineControl.update();
+    firstWorld.step();
+    secondWorld.step();
+    baselineWorld.step();
+    if (verification::hashState(firstWorld.model(), firstWorld.data()) != verification::hashState(secondWorld.model(), secondWorld.data())) {
+      std::printf("slider-determinism: FAIL - state streams diverged at step %d\n", step);
+      return false;
     }
+  }
 
-    std::printf("slider-determinism: given the same scripted input session (sliders, turn rate, gait switch, speed, sit/stand) "
-                "applied at effect-steps into two worlds walking %dx in lockstep, then state streams are "
-                "bit-identical and differ from the no-events baseline: PASS\n",
-                stepCount);
-    return true;
+  const uint64_t sessionHash = verification::hashState(firstWorld.model(), firstWorld.data());
+  const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
+  if (sessionHash == baselineHash) {
+    std::printf("slider-determinism: FAIL - input session left the trajectory unchanged (events ignored?)\n");
+    return false;
+  }
+
+  std::printf("slider-determinism: given the same scripted input session (sliders, turn rate, gait switch, speed, sit/stand) "
+              "applied at effect-steps into two worlds walking %dx in lockstep, then state streams are "
+              "bit-identical and differ from the no-events baseline: PASS\n",
+              stepCount);
+  return true;
 }
 
 // Given the hexapod walking, when gaits switch tripod -> ripple -> wave ->
@@ -330,70 +330,70 @@ bool scenarioSliderDeterminism(const std::string& modelPath, uint64_t /*seed*/) 
 // tripod forever and pass the first two claims. Thresholds are geometry and
 // story numbers, not code outputs.
 bool scenarioGaitSwitch(const std::string& modelPath, uint64_t /*seed*/) {
-    const std::vector<InputEvent> gaitSession{
-        {3000, InputEvent::Type::Gait, "ripple"},
-        {4000, InputEvent::Type::Gait, "wave"},
-        {5000, InputEvent::Type::Gait, "tripod"},
-    };
+  const std::vector<InputEvent> gaitSession{
+      {3000, InputEvent::Type::Gait, "ripple"},
+      {4000, InputEvent::Type::Gait, "wave"},
+      {5000, InputEvent::Type::Gait, "tripod"},
+  };
 
-    World world(modelPath);
-    World baselineWorld(modelPath);
-    Control control(world);
-    Control baselineControl(baselineWorld);
-    control.holdStandPose();
-    baselineControl.holdStandPose();
+  World world(modelPath);
+  World baselineWorld(modelPath);
+  Control control(world);
+  Control baselineControl(baselineWorld);
+  control.holdStandPose();
+  baselineControl.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-        baselineWorld.step();
+  constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+    baselineWorld.step();
+  }
+
+  control.startWalking();
+  baselineControl.startWalking();
+  const double startDistance = world.traveledDistance();
+
+  // Apply each event at its effect-stamp, before the update() that consumes
+  // it — the same convention the viewer stamps by. Stamps are absolute world
+  // steps: walk starts at step 2000, switches land 2 s apart.
+  const auto applySession = [&](uint64_t stepIndex) {
+    for (const InputEvent& event : gaitSession) {
+      if (event.stepIndex != stepIndex)
+        continue;
+      GaitParameters& parameters = control.gaitParameters();
+      if (event.payload == "tripod")
+        parameters.gait = GaitParameters::Gait::Tripod;
+      else if (event.payload == "ripple")
+        parameters.gait = GaitParameters::Gait::Ripple;
+      else if (event.payload == "wave")
+        parameters.gait = GaitParameters::Gait::Wave;
     }
+  };
 
-    control.startWalking();
-    baselineControl.startWalking();
-    const double startDistance = world.traveledDistance();
+  constexpr int walkSteps = 4000; // 8.0 s: two seconds in each gait
+  constexpr double minTrunkHeight = 0.10;
+  constexpr double minForwardDistance = 0.5;
+  double lowestTrunkHeight = 2.0;
 
-    // Apply each event at its effect-stamp, before the update() that consumes
-    // it — the same convention the viewer stamps by. Stamps are absolute world
-    // steps: walk starts at step 2000, switches land 2 s apart.
-    const auto applySession = [&](uint64_t stepIndex) {
-        for (const InputEvent& event : gaitSession) {
-            if (event.stepIndex != stepIndex)
-                continue;
-            GaitParameters& parameters = control.gaitParameters();
-            if (event.payload == "tripod")
-                parameters.gait = GaitParameters::Gait::Tripod;
-            else if (event.payload == "ripple")
-                parameters.gait = GaitParameters::Gait::Ripple;
-            else if (event.payload == "wave")
-                parameters.gait = GaitParameters::Gait::Wave;
-        }
-    };
+  for (int step = 0; step < walkSteps; ++step) {
+    applySession(world.stepIndex());
+    control.update();
+    baselineControl.update();
+    world.step();
+    baselineWorld.step();
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+  }
 
-    constexpr int walkSteps = 4000; // 8.0 s: two seconds in each gait
-    constexpr double minTrunkHeight = 0.10;
-    constexpr double minForwardDistance = 0.5;
-    double lowestTrunkHeight = 2.0;
+  const double forwardDistance = world.traveledDistance() - startDistance;
+  const uint64_t switchedHash = verification::hashState(world.model(), world.data());
+  const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
 
-    for (int step = 0; step < walkSteps; ++step) {
-        applySession(world.stepIndex());
-        control.update();
-        baselineControl.update();
-        world.step();
-        baselineWorld.step();
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
-    }
-
-    const double forwardDistance = world.traveledDistance() - startDistance;
-    const uint64_t switchedHash = verification::hashState(world.model(), world.data());
-    const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
-
-    const bool passed = lowestTrunkHeight >= minTrunkHeight && forwardDistance >= minForwardDistance && switchedHash != baselineHash;
-    std::printf("gait-switch: given tripod->ripple->wave->tripod switched mid-walk, then "
-                "lowest trunk %.3f m (need >= 0.100), %.2f m forward (need >= 0.50), "
-                "state hash differs from tripod-only baseline: %s\n",
-                lowestTrunkHeight, forwardDistance, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = lowestTrunkHeight >= minTrunkHeight && forwardDistance >= minForwardDistance && switchedHash != baselineHash;
+  std::printf("gait-switch: given tripod->ripple->wave->tripod switched mid-walk, then "
+              "lowest trunk %.3f m (need >= 0.100), %.2f m forward (need >= 0.50), "
+              "state hash differs from tripod-only baseline: %s\n",
+              lowestTrunkHeight, forwardDistance, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod commanded to spin in place (stride 0, turnRate 1.5 rad/s
@@ -406,72 +406,72 @@ bool scenarioGaitSwitch(const std::string& modelPath, uint64_t /*seed*/) {
 // math were broken the yaw would never reach 360 and the gate fails on its
 // own — no baseline leg needed.
 bool scenarioTurn360(const std::string& modelPath, uint64_t /*seed*/) {
-    World world(modelPath);
-    Control control(world);
-    control.holdStandPose();
+  World world(modelPath);
+  Control control(world);
+  control.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s stand-up transient
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-    }
+  constexpr int standUpSteps = 2000; // 4.0 s stand-up transient
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+  }
 
-    control.startWalking();
-    control.gaitParameters().stride = 0.0;   // spin in place: no forward stride
-    control.gaitParameters().turnRate = 1.5; // rad/s, the full slider range
+  control.startWalking();
+  control.gaitParameters().stride = 0.0;   // spin in place: no forward stride
+  control.gaitParameters().turnRate = 1.5; // rad/s, the full slider range
 
-    const int trunkBody = mj_name2id(&world.model(), mjOBJ_BODY, "trunk");
-    const double startX = world.data().xpos[3 * trunkBody];
-    const double startY = world.data().xpos[3 * trunkBody + 1];
+  const int trunkBody = mj_name2id(&world.model(), mjOBJ_BODY, "trunk");
+  const double startX = world.data().xpos[3 * trunkBody];
+  const double startY = world.data().xpos[3 * trunkBody + 1];
 
-    const auto trunkYaw = [&]() {
-        const mjtNum* quaternion = &world.data().xquat[4 * trunkBody];
-        const double qw = quaternion[0];
-        const double qx = quaternion[1];
-        const double qy = quaternion[2];
-        const double qz = quaternion[3];
-        return std::atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz));
-    };
+  const auto trunkYaw = [&]() {
+    const mjtNum* quaternion = &world.data().xquat[4 * trunkBody];
+    const double qw = quaternion[0];
+    const double qx = quaternion[1];
+    const double qy = quaternion[2];
+    const double qz = quaternion[3];
+    return std::atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz));
+  };
 
-    constexpr int turnBudgetSteps = 15000; // 30.0 s at dt = 0.002
-    constexpr double fullTurn = 2.0 * std::numbers::pi;
-    constexpr double minTrunkHeight = 0.10;
-    constexpr double maxDisplacement = 0.25;
+  constexpr int turnBudgetSteps = 15000; // 30.0 s at dt = 0.002
+  constexpr double fullTurn = 2.0 * std::numbers::pi;
+  constexpr double minTrunkHeight = 0.10;
+  constexpr double maxDisplacement = 0.25;
 
-    double accumulatedYaw = 0.0;
-    double previousYaw = trunkYaw();
-    double lowestTrunkHeight = 2.0;
-    double worstDisplacement = 0.0;
-    int stepsTurned = 0;
+  double accumulatedYaw = 0.0;
+  double previousYaw = trunkYaw();
+  double lowestTrunkHeight = 2.0;
+  double worstDisplacement = 0.0;
+  int stepsTurned = 0;
 
-    for (int step = 0; step < turnBudgetSteps; ++step) {
-        control.update();
-        world.step();
-        ++stepsTurned;
+  for (int step = 0; step < turnBudgetSteps; ++step) {
+    control.update();
+    world.step();
+    ++stepsTurned;
 
-        const double yaw = trunkYaw();
-        double yawDelta = yaw - previousYaw;
-        if (yawDelta > std::numbers::pi)
-            yawDelta -= 2.0 * std::numbers::pi;
-        if (yawDelta < -std::numbers::pi)
-            yawDelta += 2.0 * std::numbers::pi;
-        accumulatedYaw += yawDelta;
-        previousYaw = yaw;
+    const double yaw = trunkYaw();
+    double yawDelta = yaw - previousYaw;
+    if (yawDelta > std::numbers::pi)
+      yawDelta -= 2.0 * std::numbers::pi;
+    if (yawDelta < -std::numbers::pi)
+      yawDelta += 2.0 * std::numbers::pi;
+    accumulatedYaw += yawDelta;
+    previousYaw = yaw;
 
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
-        const double deltaX = world.data().xpos[3 * trunkBody] - startX;
-        const double deltaY = world.data().xpos[3 * trunkBody + 1] - startY;
-        worstDisplacement = std::max(worstDisplacement, std::hypot(deltaX, deltaY));
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+    const double deltaX = world.data().xpos[3 * trunkBody] - startX;
+    const double deltaY = world.data().xpos[3 * trunkBody + 1] - startY;
+    worstDisplacement = std::max(worstDisplacement, std::hypot(deltaX, deltaY));
 
-        if (std::abs(accumulatedYaw) >= fullTurn)
-            break;
-    }
+    if (std::abs(accumulatedYaw) >= fullTurn)
+      break;
+  }
 
-    const bool passed = std::abs(accumulatedYaw) >= fullTurn && lowestTrunkHeight >= minTrunkHeight && worstDisplacement <= maxDisplacement;
-    std::printf("turn-360: given stride 0 and turnRate 1.5 rad/s, then %.0f degrees yawed "
-                "in %.1f s (need >= 360 in <= 30.0), lowest trunk %.3f m (need >= 0.100), "
-                "worst displacement %.3f m (need <= 0.250): %s\n",
-                std::abs(accumulatedYaw) * 180.0 / std::numbers::pi, stepsTurned * world.timestep(), lowestTrunkHeight, worstDisplacement, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = std::abs(accumulatedYaw) >= fullTurn && lowestTrunkHeight >= minTrunkHeight && worstDisplacement <= maxDisplacement;
+  std::printf("turn-360: given stride 0 and turnRate 1.5 rad/s, then %.0f degrees yawed "
+              "in %.1f s (need >= 360 in <= 30.0), lowest trunk %.3f m (need >= 0.100), "
+              "worst displacement %.3f m (need <= 0.250): %s\n",
+              std::abs(accumulatedYaw) * 180.0 / std::numbers::pi, stepsTurned * world.timestep(), lowestTrunkHeight, worstDisplacement, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod walking through the full speed slider range — 0.25x for
@@ -487,78 +487,78 @@ bool scenarioTurn360(const std::string& modelPath, uint64_t /*seed*/) {
 // both worlds identical). Thresholds are geometry and commanded ratios, not
 // code outputs.
 bool scenarioSpeedRange(const std::string& modelPath, uint64_t /*seed*/) {
-    const std::vector<InputEvent> speedSession{
-        {2000, InputEvent::Type::Slider, "speed 0.25"},
-        {3000, InputEvent::Type::Slider, "speed 3.0"},
-        {4000, InputEvent::Type::Slider, "speed 1.0"},
-    };
+  const std::vector<InputEvent> speedSession{
+      {2000, InputEvent::Type::Slider, "speed 0.25"},
+      {3000, InputEvent::Type::Slider, "speed 3.0"},
+      {4000, InputEvent::Type::Slider, "speed 1.0"},
+  };
 
-    World world(modelPath);
-    World baselineWorld(modelPath);
-    Control control(world);
-    Control baselineControl(baselineWorld);
-    control.holdStandPose();
-    baselineControl.holdStandPose();
+  World world(modelPath);
+  World baselineWorld(modelPath);
+  Control control(world);
+  Control baselineControl(baselineWorld);
+  control.holdStandPose();
+  baselineControl.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-        baselineWorld.step();
+  constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+    baselineWorld.step();
+  }
+
+  control.startWalking();
+  baselineControl.startWalking();
+  const double startDistance = world.traveledDistance();
+
+  // Apply each event at its effect-stamp, before the update() that consumes
+  // it — the same convention the viewer stamps by.
+  const auto applySession = [&](uint64_t stepIndex) {
+    for (const InputEvent& event : speedSession) {
+      if (event.stepIndex != stepIndex)
+        continue;
+      const auto separator = event.payload.find(' ');
+      const double value = std::stod(event.payload.substr(separator + 1));
+      control.gaitParameters().speed = value;
     }
+  };
 
-    control.startWalking();
-    baselineControl.startWalking();
-    const double startDistance = world.traveledDistance();
+  constexpr int walkSteps = 3000; // 6.0 s: two seconds at each speed
+  constexpr double minTrunkHeight = 0.10;
+  constexpr double minForwardDistance = 0.5;
+  constexpr double minFastToSlowRatio = 3.0;
 
-    // Apply each event at its effect-stamp, before the update() that consumes
-    // it — the same convention the viewer stamps by.
-    const auto applySession = [&](uint64_t stepIndex) {
-        for (const InputEvent& event : speedSession) {
-            if (event.stepIndex != stepIndex)
-                continue;
-            const auto separator = event.payload.find(' ');
-            const double value = std::stod(event.payload.substr(separator + 1));
-            control.gaitParameters().speed = value;
-        }
-    };
+  double lowestTrunkHeight = 2.0;
+  double distanceAtSlowEnd = 0.0;
+  double distanceAtFastEnd = 0.0;
 
-    constexpr int walkSteps = 3000; // 6.0 s: two seconds at each speed
-    constexpr double minTrunkHeight = 0.10;
-    constexpr double minForwardDistance = 0.5;
-    constexpr double minFastToSlowRatio = 3.0;
+  for (int step = 0; step < walkSteps; ++step) {
+    const uint64_t stepIndex = world.stepIndex();
+    // Snapshot segment boundaries before the boundary step's event lands.
+    if (stepIndex == 3000)
+      distanceAtSlowEnd = world.traveledDistance();
+    if (stepIndex == 4000)
+      distanceAtFastEnd = world.traveledDistance();
+    applySession(stepIndex);
+    control.update();
+    baselineControl.update();
+    world.step();
+    baselineWorld.step();
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+  }
 
-    double lowestTrunkHeight = 2.0;
-    double distanceAtSlowEnd = 0.0;
-    double distanceAtFastEnd = 0.0;
+  const double forwardDistance = world.traveledDistance() - startDistance;
+  const double slowSegmentDistance = distanceAtSlowEnd - startDistance;
+  const double fastSegmentDistance = distanceAtFastEnd - distanceAtSlowEnd;
+  const uint64_t sessionHash = verification::hashState(world.model(), world.data());
+  const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
 
-    for (int step = 0; step < walkSteps; ++step) {
-        const uint64_t stepIndex = world.stepIndex();
-        // Snapshot segment boundaries before the boundary step's event lands.
-        if (stepIndex == 3000)
-            distanceAtSlowEnd = world.traveledDistance();
-        if (stepIndex == 4000)
-            distanceAtFastEnd = world.traveledDistance();
-        applySession(stepIndex);
-        control.update();
-        baselineControl.update();
-        world.step();
-        baselineWorld.step();
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
-    }
-
-    const double forwardDistance = world.traveledDistance() - startDistance;
-    const double slowSegmentDistance = distanceAtSlowEnd - startDistance;
-    const double fastSegmentDistance = distanceAtFastEnd - distanceAtSlowEnd;
-    const uint64_t sessionHash = verification::hashState(world.model(), world.data());
-    const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
-
-    const bool passed = lowestTrunkHeight >= minTrunkHeight && forwardDistance >= minForwardDistance && fastSegmentDistance >= minFastToSlowRatio * slowSegmentDistance &&
-                        sessionHash != baselineHash;
-    std::printf("speed-range: given speed 0.25x/3.0x/1.0x driven mid-walk, then lowest trunk %.3f m "
-                "(need >= 0.100), %.2f m forward (need >= 0.50), fast/slow distance ratio %.1f "
-                "(need >= 3.0), state hash differs from speed-1 baseline: %s\n",
-                lowestTrunkHeight, forwardDistance, fastSegmentDistance / slowSegmentDistance, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = lowestTrunkHeight >= minTrunkHeight && forwardDistance >= minForwardDistance && fastSegmentDistance >= minFastToSlowRatio * slowSegmentDistance &&
+                      sessionHash != baselineHash;
+  std::printf("speed-range: given speed 0.25x/3.0x/1.0x driven mid-walk, then lowest trunk %.3f m "
+              "(need >= 0.100), %.2f m forward (need >= 0.50), fast/slow distance ratio %.1f "
+              "(need >= 3.0), state hash differs from speed-1 baseline: %s\n",
+              lowestTrunkHeight, forwardDistance, fastSegmentDistance / slowSegmentDistance, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Given the hexapod walking, then commanded to sit mid-walk, hold, and stand
@@ -580,106 +580,106 @@ bool scenarioSpeedRange(const std::string& modelPath, uint64_t /*seed*/) {
 // so they measure settled behavior, not the transient. Thresholds are
 // geometry and story numbers, not code outputs.
 bool scenarioSitStand(const std::string& modelPath, uint64_t /*seed*/) {
-    const std::vector<InputEvent> poseSession{
-        {3000, InputEvent::Type::Pose, "sit"},
-        {5000, InputEvent::Type::Pose, "stand"},
-    };
+  const std::vector<InputEvent> poseSession{
+      {3000, InputEvent::Type::Pose, "sit"},
+      {5000, InputEvent::Type::Pose, "stand"},
+  };
 
-    World world(modelPath);
-    World baselineWorld(modelPath);
-    Control control(world);
-    Control baselineControl(baselineWorld);
-    control.holdStandPose();
-    baselineControl.holdStandPose();
+  World world(modelPath);
+  World baselineWorld(modelPath);
+  Control control(world);
+  Control baselineControl(baselineWorld);
+  control.holdStandPose();
+  baselineControl.holdStandPose();
 
-    constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
-    for (int step = 0; step < standUpSteps; ++step) {
-        world.step();
-        baselineWorld.step();
+  constexpr int standUpSteps = 2000; // 4.0 s stand-up transient, stand-gate precedent
+  for (int step = 0; step < standUpSteps; ++step) {
+    world.step();
+    baselineWorld.step();
+  }
+
+  control.startWalking();
+  baselineControl.startWalking();
+
+  const auto applySession = [&](uint64_t stepIndex) {
+    for (const InputEvent& event : poseSession) {
+      if (event.stepIndex != stepIndex)
+        continue;
+      if (event.payload == "sit")
+        control.sit();
+      else if (event.payload == "stand")
+        control.stand();
     }
+  };
 
-    control.startWalking();
-    baselineControl.startWalking();
+  constexpr int walkSteps = 5000;          // steps 2000..6999: walk, sit, hold, stand, walk
+  constexpr uint64_t sitHoldStart = 4000;  // sit at 3000: boundary <= 3333 + 500 transition < 4000
+  constexpr uint64_t sitHoldEnd = 5000;    // stand commanded at 5000
+  constexpr uint64_t recoveryStart = 6000; // stand at 5000 + 500 transition < 6000
+  constexpr double minTrunkHeight = 0.04;
+  constexpr double maxAbsPitchRadians = 30.0 * std::numbers::pi / 180.0;
+  constexpr double maxSitTrunkHeight = 0.09;
+  constexpr double maxSitHoldTrackingError = 0.05;
+  constexpr double minRecoveryTrunkHeight = 0.10;
+  constexpr double minResumeDistance = 0.1;
 
-    const auto applySession = [&](uint64_t stepIndex) {
-        for (const InputEvent& event : poseSession) {
-            if (event.stepIndex != stepIndex)
-                continue;
-            if (event.payload == "sit")
-                control.sit();
-            else if (event.payload == "stand")
-                control.stand();
-        }
-    };
+  double lowestTrunkHeight = 2.0;
+  double worstAbsPitch = 0.0;
+  double highestSitTrunk = 0.0;
+  double worstSitHoldTracking = 0.0;
+  double lowestRecoveryTrunk = 2.0;
+  double distanceAtRecoveryStart = 0.0;
 
-    constexpr int walkSteps = 5000;          // steps 2000..6999: walk, sit, hold, stand, walk
-    constexpr uint64_t sitHoldStart = 4000;  // sit at 3000: boundary <= 3333 + 500 transition < 4000
-    constexpr uint64_t sitHoldEnd = 5000;    // stand commanded at 5000
-    constexpr uint64_t recoveryStart = 6000; // stand at 5000 + 500 transition < 6000
-    constexpr double minTrunkHeight = 0.04;
-    constexpr double maxAbsPitchRadians = 30.0 * std::numbers::pi / 180.0;
-    constexpr double maxSitTrunkHeight = 0.09;
-    constexpr double maxSitHoldTrackingError = 0.05;
-    constexpr double minRecoveryTrunkHeight = 0.10;
-    constexpr double minResumeDistance = 0.1;
+  for (int step = 0; step < walkSteps; ++step) {
+    const uint64_t stepIndex = world.stepIndex();
+    if (stepIndex == recoveryStart)
+      distanceAtRecoveryStart = world.traveledDistance();
+    applySession(stepIndex);
+    control.update();
+    baselineControl.update();
+    world.step();
+    baselineWorld.step();
 
-    double lowestTrunkHeight = 2.0;
-    double worstAbsPitch = 0.0;
-    double highestSitTrunk = 0.0;
-    double worstSitHoldTracking = 0.0;
-    double lowestRecoveryTrunk = 2.0;
-    double distanceAtRecoveryStart = 0.0;
-
-    for (int step = 0; step < walkSteps; ++step) {
-        const uint64_t stepIndex = world.stepIndex();
-        if (stepIndex == recoveryStart)
-            distanceAtRecoveryStart = world.traveledDistance();
-        applySession(stepIndex);
-        control.update();
-        baselineControl.update();
-        world.step();
-        baselineWorld.step();
-
-        lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
-        worstAbsPitch = std::max(worstAbsPitch, std::abs(world.trunkPitch()));
-        if (stepIndex >= sitHoldStart && stepIndex < sitHoldEnd) {
-            highestSitTrunk = std::max(highestSitTrunk, world.trunkHeight());
-            worstSitHoldTracking = std::max(worstSitHoldTracking, world.maxJointTrackingError());
-        }
-        if (stepIndex >= recoveryStart)
-            lowestRecoveryTrunk = std::min(lowestRecoveryTrunk, world.trunkHeight());
+    lowestTrunkHeight = std::min(lowestTrunkHeight, world.trunkHeight());
+    worstAbsPitch = std::max(worstAbsPitch, std::abs(world.trunkPitch()));
+    if (stepIndex >= sitHoldStart && stepIndex < sitHoldEnd) {
+      highestSitTrunk = std::max(highestSitTrunk, world.trunkHeight());
+      worstSitHoldTracking = std::max(worstSitHoldTracking, world.maxJointTrackingError());
     }
+    if (stepIndex >= recoveryStart)
+      lowestRecoveryTrunk = std::min(lowestRecoveryTrunk, world.trunkHeight());
+  }
 
-    const double resumeDistance = world.traveledDistance() - distanceAtRecoveryStart;
-    const uint64_t sessionHash = verification::hashState(world.model(), world.data());
-    const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
+  const double resumeDistance = world.traveledDistance() - distanceAtRecoveryStart;
+  const uint64_t sessionHash = verification::hashState(world.model(), world.data());
+  const uint64_t baselineHash = verification::hashState(baselineWorld.model(), baselineWorld.data());
 
-    const bool passed = lowestTrunkHeight >= minTrunkHeight && worstAbsPitch <= maxAbsPitchRadians && highestSitTrunk <= maxSitTrunkHeight &&
-                        worstSitHoldTracking < maxSitHoldTrackingError && lowestRecoveryTrunk >= minRecoveryTrunkHeight && resumeDistance >= minResumeDistance &&
-                        sessionHash != baselineHash;
-    std::printf("sit-stand: given sit mid-walk, hold, stand, then lowest trunk %.3f m (need >= 0.040), "
-                "worst pitch %.1f deg (need <= 30.0), sit-hold trunk %.3f m (need <= 0.090), "
-                "sit-hold tracking %.3f rad (need < 0.050), recovery trunk %.3f m (need >= 0.100), "
-                "%.2f m after stand (need >= 0.10), state hash differs from no-events baseline: %s\n",
-                lowestTrunkHeight, worstAbsPitch * 180.0 / std::numbers::pi, highestSitTrunk, worstSitHoldTracking, lowestRecoveryTrunk, resumeDistance, passed ? "PASS" : "FAIL");
-    return passed;
+  const bool passed = lowestTrunkHeight >= minTrunkHeight && worstAbsPitch <= maxAbsPitchRadians && highestSitTrunk <= maxSitTrunkHeight &&
+                      worstSitHoldTracking < maxSitHoldTrackingError && lowestRecoveryTrunk >= minRecoveryTrunkHeight && resumeDistance >= minResumeDistance &&
+                      sessionHash != baselineHash;
+  std::printf("sit-stand: given sit mid-walk, hold, stand, then lowest trunk %.3f m (need >= 0.040), "
+              "worst pitch %.1f deg (need <= 30.0), sit-hold trunk %.3f m (need <= 0.090), "
+              "sit-hold tracking %.3f rad (need < 0.050), recovery trunk %.3f m (need >= 0.100), "
+              "%.2f m after stand (need >= 0.10), state hash differs from no-events baseline: %s\n",
+              lowestTrunkHeight, worstAbsPitch * 180.0 / std::numbers::pi, highestSitTrunk, worstSitHoldTracking, lowestRecoveryTrunk, resumeDistance, passed ? "PASS" : "FAIL");
+  return passed;
 }
 
 // Self-registration: the gates exist in the suite because this initializer
 // runs at startup, before main.
 const bool registered = [] {
-    verification::registerScenario("smoke", &scenarioSmoke);
-    verification::registerScenario("determinism", &scenarioDeterminism);
-    verification::registerScenario("stand", &scenarioStand);
-    verification::registerScenario("sanity", &scenarioSanity);
-    verification::registerScenario("walk-5m", &scenarioWalk5m);
-    verification::registerScenario("throughput", &scenarioThroughput);
-    verification::registerScenario("slider-determinism", &scenarioSliderDeterminism);
-    verification::registerScenario("gait-switch", &scenarioGaitSwitch);
-    verification::registerScenario("turn-360", &scenarioTurn360);
-    verification::registerScenario("speed-range", &scenarioSpeedRange);
-    verification::registerScenario("sit-stand", &scenarioSitStand);
-    return true;
+  verification::registerScenario("smoke", &scenarioSmoke);
+  verification::registerScenario("determinism", &scenarioDeterminism);
+  verification::registerScenario("stand", &scenarioStand);
+  verification::registerScenario("sanity", &scenarioSanity);
+  verification::registerScenario("walk-5m", &scenarioWalk5m);
+  verification::registerScenario("throughput", &scenarioThroughput);
+  verification::registerScenario("slider-determinism", &scenarioSliderDeterminism);
+  verification::registerScenario("gait-switch", &scenarioGaitSwitch);
+  verification::registerScenario("turn-360", &scenarioTurn360);
+  verification::registerScenario("speed-range", &scenarioSpeedRange);
+  verification::registerScenario("sit-stand", &scenarioSitStand);
+  return true;
 }();
 
 } // namespace
