@@ -10,6 +10,7 @@ struct InputEvent {
         Slider = 's',  // live parameter changes,
         Toggle = 't',  // toogle to enable/disable physics
         Gait = 'g',    // commanded gait to switch gait type at the next cycle
+        Pose = 'o',    // toggle pose to sit or stand
     };
 
     // the step at which an event took effect
