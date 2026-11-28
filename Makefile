@@ -18,6 +18,8 @@ test: build
 	$(BUILD_DIR)/hexapods --scenario walk-5m
 	$(BUILD_DIR)/hexapods --scenario throughput
 	$(BUILD_DIR)/hexapods --scenario slider-determinism
+	$(BUILD_DIR)/hexapods --scenario gait-switch
+	$(BUILD_DIR)/hexapods --scenario turn-360
 	@echo "all scenario gates passed"
 
 format:
