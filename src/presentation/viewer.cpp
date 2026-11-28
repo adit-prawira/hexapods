@@ -131,6 +131,19 @@ void Viewer::handleKeys() {
         journal_.append({world_.stepIndex(), InputEvent::Type::Gait, gaitToken(parameters.gait)});
     }
     gaitKeyWasDown_ = gaitKeyDown;
+
+    const bool poseKeyDown = glfwGetKey(window_, GLFW_KEY_O) == GLFW_PRESS;
+
+    if (poseKeyDown && !poseKeyWasDown_) {
+        if (control_.isSitCommanded()) {
+            control_.stand();
+            journal_.append({world_.stepIndex(), InputEvent::Type::Pose, "stand"});
+        } else {
+            control_.sit();
+            journal_.append({world_.stepIndex(), InputEvent::Type::Pose, "sit"});
+        }
+    }
+    poseKeyWasDown_ = poseKeyDown;
 }
 
 void Viewer::updateCamera() {
@@ -228,6 +241,7 @@ void Viewer::drawHud() {
     slider("Stance Height", "stanceHeight", parameters.stanceHeight, 0.10f, 0.17f, "%.3f m");
 
     slider("Turn Rate", "turnRate", parameters.turnRate, -1.5f, 1.5f, "%.2f rad/s");
+    slider("Speed", "speed", parameters.speed, 0.25f, 3.0f, "%.2fx");
 
     const auto gaitButton = [&](const char* label, GaitParameters::Gait gait) {
         const bool isActive = parameters.gait == gait;
@@ -249,5 +263,27 @@ void Viewer::drawHud() {
     ImGui::SameLine();
 
     gaitButton("Wave", GaitParameters::Gait::Wave);
+
+    const bool sitCommanded = control_.isSitCommanded();
+    if (sitCommanded)
+        ImGui::BeginDisabled();
+    if (ImGui::Button("Sit")) {
+        control_.sit();
+        journal_.append({world_.stepIndex(), InputEvent::Type::Pose, "sit"});
+    }
+    if (sitCommanded)
+        ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    if (!sitCommanded)
+        ImGui::BeginDisabled();
+    if (ImGui::Button("Stand")) {
+        control_.stand();
+        journal_.append({world_.stepIndex(), InputEvent::Type::Pose, "stand"});
+    }
+    if (!sitCommanded)
+        ImGui::EndDisabled();
+
     ImGui::End();
 }

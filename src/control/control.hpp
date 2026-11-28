@@ -14,6 +14,8 @@ struct GaitParameters {
 
 class Control {
   public:
+    enum class Pose { Sit, Stand };
+
     explicit Control(World& world);
 
     Control(const Control&) = delete;
@@ -21,6 +23,9 @@ class Control {
 
     void holdStandPose();
     void startWalking();
+    void sit();
+    void stand();
+    bool isSitCommanded() const;
 
     void update();
     GaitParameters& gaitParameters() { return parameters_; }
@@ -30,19 +35,38 @@ class Control {
     void adoptNewGait();
     void setLegTargetAngles(int legId, double coxa, double femur, double tibia);
 
-    double calculateCoxaTargetAngle(int& legId, const double& legPhase, const double& dutyFactor) const;
+    double calculateCoxaTargetAngle(int legId, const double& legPhase, const double& dutyFactor) const;
     double calculateFemurTargetAngle(const double& heightScale) const;
     double calculateTibiaTargetAngle(const double& legPhase, const double& heightScale, const double& dutyFactor) const;
 
     static constexpr int kLegCount = 6;
+    static constexpr int kLegJointCount = 3;
+
+    struct PoseTransition {
+        Pose destination = Pose::Sit;
+        std::array<double, kLegCount * kLegJointCount> startTargets{};
+        std::array<double, kLegCount * kLegJointCount> endTargets{};
+        int stepsElapsed = 0;
+        int stepsTotal = 0;
+    };
+
+    void beginPoseTransition(Pose destination);
+    void advancePoseTransition();
+    void captureCurrentTargets(std::array<double, kLegCount * 3>& targets) const;
+    bool isTransitioningTo(Pose target) const;
+    bool isInterruptingAnotherTransition() const;
 
     World& world_;
     GaitParameters parameters_;
 
-    bool is_walking_ = false;
+    bool isWalking_ = false;
     double gaitPhase_ = 0.0;
 
     GaitParameters::Gait activeGait_ = GaitParameters::Gait::Tripod;
+
+    bool pendingSit_ = false;
+    bool isSitting_ = false;
+    std::optional<PoseTransition> poseTransition_;
 
     std::array<double, kLegCount> sweepSign_;
     std::array<double, kLegCount> sideSign_;
