@@ -14,6 +14,18 @@
 
 namespace {
 void onGlfwError(int code, const char* description) { std::fprintf(stderr, "glfw error %d: %s\n", code, description); }
+
+const char* gaitToken(GaitParameters::Gait gait) {
+    switch (gait) {
+    case GaitParameters::Gait::Tripod:
+        return "tripod";
+    case GaitParameters::Gait::Ripple:
+        return "ripple";
+    case GaitParameters::Gait::Wave:
+        return "wave";
+    }
+    return "tripod";
+}
 } // namespace
 
 struct WindowState {
@@ -111,6 +123,14 @@ void Viewer::handleKeys() {
     }
 
     resetKeyWasDown_ = resetKeyDown;
+
+    const bool gaitKeyDown = glfwGetKey(window_, GLFW_KEY_G) == GLFW_PRESS;
+    if (gaitKeyDown && !gaitKeyWasDown_) {
+        GaitParameters& parameters = control_.gaitParameters();
+        parameters.gait = static_cast<GaitParameters::Gait>((static_cast<int>(parameters.gait) + 1) % 3);
+        journal_.append({world_.stepIndex(), InputEvent::Type::Gait, gaitToken(parameters.gait)});
+    }
+    gaitKeyWasDown_ = gaitKeyDown;
 }
 
 void Viewer::updateCamera() {
@@ -206,5 +226,28 @@ void Viewer::drawHud() {
     slider("Frequency", "frequency", parameters.frequency, 0.5f, 3.0f, "%.2f Hz");
     slider("Stride", "stride", parameters.stride, 0.0f, 0.17f, "%.3f m");
     slider("Stance Height", "stanceHeight", parameters.stanceHeight, 0.10f, 0.17f, "%.3f m");
+
+    slider("Turn Rate", "turnRate", parameters.turnRate, -1.5f, 1.5f, "%.2f rad/s");
+
+    const auto gaitButton = [&](const char* label, GaitParameters::Gait gait) {
+        const bool isActive = parameters.gait == gait;
+        if (isActive)
+            ImGui::BeginDisabled();
+        if (ImGui::Button(label)) {
+            parameters.gait = gait;
+            journal_.append({world_.stepIndex(), InputEvent::Type::Gait, gaitToken(gait)});
+        }
+
+        if (isActive)
+            ImGui::EndDisabled();
+    };
+
+    gaitButton("Tripod", GaitParameters::Gait::Tripod);
+    ImGui::SameLine();
+
+    gaitButton("Ripple", GaitParameters::Gait::Ripple);
+    ImGui::SameLine();
+
+    gaitButton("Wave", GaitParameters::Gait::Wave);
     ImGui::End();
 }

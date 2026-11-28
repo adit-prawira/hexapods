@@ -42,6 +42,7 @@ class Viewer {
 
     bool pauseKeyWasDown_ = false;
     bool resetKeyWasDown_ = false;
+    bool gaitKeyWasDown_ = false;
 
     double previousMouseX_ = 0.0;
     double previousMouseY_ = 0.0;

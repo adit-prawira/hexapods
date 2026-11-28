@@ -27,7 +27,12 @@ class Control {
     void resetGaitParameters() { parameters_ = GaitParameters{}; }
 
   private:
-    void writeLegTargets(int legId, double coxa, double femur, double tibia);
+    void adoptNewGait();
+    void setLegTargetAngles(int legId, double coxa, double femur, double tibia);
+
+    double calculateCoxaTargetAngle(int& legId, const double& legPhase, const double& dutyFactor) const;
+    double calculateFemurTargetAngle(const double& heightScale) const;
+    double calculateTibiaTargetAngle(const double& legPhase, const double& heightScale, const double& dutyFactor) const;
 
     static constexpr int kLegCount = 6;
 
@@ -37,6 +42,10 @@ class Control {
     bool is_walking_ = false;
     double gaitPhase_ = 0.0;
 
+    GaitParameters::Gait activeGait_ = GaitParameters::Gait::Tripod;
+
     std::array<double, kLegCount> sweepSign_;
+    std::array<double, kLegCount> sideSign_;
+    std::array<double, kLegCount> coxaLimit_;
     std::array<double, kLegCount> footReach_;
 };

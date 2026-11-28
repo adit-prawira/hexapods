@@ -9,6 +9,7 @@ struct InputEvent {
         Perturb = 'p', // mouse-grab forces
         Slider = 's',  // live parameter changes,
         Toggle = 't',  // toogle to enable/disable physics
+        Gait = 'g',    // commanded gait to switch gait type at the next cycle
     };
 
     // the step at which an event took effect

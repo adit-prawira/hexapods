@@ -1,4 +1,5 @@
 #include "control/control.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <mujoco/mjtype.h>
@@ -22,7 +23,10 @@ constexpr JointTarget kStandPose[]{{"coxa", kStandCoxa}, {"femur", kStandFemur},
 
 constexpr double kSwingLift = 0.6;           // lower-lweg fold at mid-swing (radians)
 constexpr double kNominalStandHeight = 0.16; // trunk height of the sxtand pose
-constexpr double kStanceFraction = 0.5;      // tripod duty factor: half the cycle stance, half swing
+
+constexpr double kGaitOffset[3][6] = {{0.0, 0.5, 0.0, 0.5, 0.0, 0.5}, {0.0, 1.0 / 3, 2.0 / 3, 2.0 / 3, 1.0 / 3, 0.0}, {0.0, 1.0 / 6, 2.0 / 6, 3.0 / 6, 4.0 / 6, 5.0 / 6}};
+
+constexpr double kGaitDuty[3] = {0.5, 2.0 / 3, 5.0 / 6};
 } // namespace
 
 Control::Control(World& world) : world_(world) {
@@ -40,13 +44,20 @@ Control::Control(World& world) : world_(world) {
         const int tibiaBody = mj_name2id(&world_.model(), mjOBJ_BODY, tibiaName);
 
         char footName[16];
-    std:
-        snprintf(footName, sizeof(footName), "leg%d_foot", legId);
+        std::snprintf(footName, sizeof(footName), "leg%d_foot", legId);
         const int footGeometry = mj_name2id(&world_.model(), mjOBJ_GEOM, footName);
 
         bool is_missing_body_component = legBody < 0 || femurBody < 0 || tibiaBody < 0 || footGeometry < 0;
         if (is_missing_body_component)
             throw std::runtime_error("model is missing some leg bodies or feet component");
+
+        char coxaActuatorName[32];
+        std::snprintf(coxaActuatorName, sizeof(coxaActuatorName), "leg%d_coxa", legId);
+        const int coxaActuator = mj_name2id(&world_.model(), mjOBJ_ACTUATOR, coxaActuatorName);
+        if (coxaActuator < 0)
+            throw std::runtime_error("model is missing a coxa actuator");
+        coxaLimit_[legId] = world_.model().actuator_ctrlrange[2 * coxaActuator + 1];
+        sideSign_[legId] = world_.model().body_pos[3 * legBody + 1] > 0.0 ? 1.0 : -1.0;
 
         // mount direction at spawn;
         const mjtNum mountForward[3] = {1, 0, 0};
@@ -77,6 +88,7 @@ void Control::holdStandPose() {
 void Control::startWalking() {
     is_walking_ = true;
     gaitPhase_ = 0.0;
+    activeGait_ = parameters_.gait;
 }
 
 void Control::update() {
@@ -87,30 +99,62 @@ void Control::update() {
     // thus live frequency change bends the trajectory from where it is instead of teleporting it by (new frequency x elapsed time)
     const double cycles = gaitPhase_;
     const double heightScale = parameters_.stanceHeight / kNominalStandHeight;
+    const int gaitIndex = static_cast<int>(activeGait_);
+    const double dutyFactor = kGaitDuty[gaitIndex];
 
     for (int legId = 0; legId < kLegCount; ++legId) {
-        // alternating legs for tripod gait where front-left, mid-right, and rear-left go forward,
-        // then front-right, mid-left, and rear-right.
-        const double legPhase = std::fmod(cycles + (legId % 2) * 0.5, 1.0);
+        const double legPhase = std::fmod(cycles + kGaitOffset[gaitIndex][legId], 1.0);
 
-        // yaw sweep angle where stride = 2 * reach * sin(A) -> A = arcsin(stride/(2*reach))
-        const double amplitude = std::asin(std::min(parameters_.stride / (2 * footReach_[legId]), 1.0));
+        const double coxaTargetAngle = calculateCoxaTargetAngle(legId, legPhase, dutyFactor);
+        const double femurTargetAngle = calculateFemurTargetAngle(heightScale);
+        const double tibiaTargetAngle = calculateTibiaTargetAngle(legPhase, heightScale, dutyFactor);
 
-        const double coxa = sweepSign_[legId] * amplitude * std::cos(2.0 * std::numbers::pi * legPhase);
-        const double femur = kStandFemur * heightScale;
-        double tibia = kStandTibia * heightScale;
-
-        if (legPhase >= kStanceFraction) {
-            const double swingProgress = (legPhase - kStanceFraction) / (1.0 - kStanceFraction);
-            tibia -= kSwingLift * std::sin(std::numbers::pi * swingProgress);
-        }
-
-        writeLegTargets(legId, coxa, femur, tibia);
+        setLegTargetAngles(legId, coxaTargetAngle, femurTargetAngle, tibiaTargetAngle);
     }
+    const double previousGaitPhase = gaitPhase_;
     gaitPhase_ += world_.timestep() * parameters_.frequency * parameters_.speed;
+
+    const bool justFinishedFullGaitCycle = std::floor(gaitPhase_) > std::floor(previousGaitPhase);
+    const bool hasNewGaitToSwitch = parameters_.gait != activeGait_;
+    const bool shouldAdoptNewGait = justFinishedFullGaitCycle && hasNewGaitToSwitch;
+
+    if (shouldAdoptNewGait) {
+        adoptNewGait();
+    }
 }
 
-void Control::writeLegTargets(int legId, double coxa, double femur, double tibia) {
+void Control::adoptNewGait() {
+    activeGait_ = parameters_.gait;
+    gaitPhase_ = 0.0;
+}
+
+double Control::calculateCoxaTargetAngle(int& legId, const double& legPhase, const double& dutyFactor) const {
+    const double turnStride = footReach_[legId] * parameters_.turnRate / parameters_.frequency;
+    const double effectiveStride = parameters_.stride + sideSign_[legId] * turnStride;
+    const double strideLimit = 2 * footReach_[legId] * std::sin(coxaLimit_[legId]);
+    const double peakCoxaAngleForStride = std::asin(std::clamp(effectiveStride, -strideLimit, strideLimit) / (2 * footReach_[legId]));
+    const double coxaSweep = sweepSign_[legId] * peakCoxaAngleForStride;
+
+    if (legPhase < dutyFactor) {
+        const double stanceProgress = legPhase / dutyFactor;
+        return coxaSweep * std::cos(std::numbers::pi * stanceProgress);
+    };
+    const double swingProgress = (legPhase - dutyFactor) / (1.0 - dutyFactor);
+    return -coxaSweep * std::cos(std::numbers::pi * swingProgress);
+}
+
+double Control::calculateFemurTargetAngle(const double& heightScale) const { return kStandFemur * heightScale; }
+
+double Control::calculateTibiaTargetAngle(const double& legPhase, const double& heightScale, const double& dutyFactor) const {
+    const double tibia = kStandTibia * heightScale;
+    if (legPhase < dutyFactor)
+        return tibia;
+
+    const double swingProgress = (legPhase - dutyFactor) / (1.0 - dutyFactor);
+    return tibia - kSwingLift * std::sin(std::numbers::pi * swingProgress);
+}
+
+void Control::setLegTargetAngles(int legId, double coxa, double femur, double tibia) {
     char actuatorName[32];
     std::snprintf(actuatorName, sizeof(actuatorName), "leg%d_coxa", legId);
     world_.setActuatorTarget(actuatorName, coxa);
